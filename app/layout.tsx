@@ -9,9 +9,8 @@ import { Toaster } from "@/components/ui/toaster"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Sales CRM - Dashboard",
-  description: "Modern Sales CRM Interface",
-    generator: 'v0.app'
+  title: "PetroBook",
+  description: "Modern Sales CRM Interface"
 }
 
 export default function RootLayout({
