@@ -1,6 +1,23 @@
 "use client"
 
-import { BarChart3, Contact, Home, Settings, Zap, CheckSquare, DollarSign } from "lucide-react"
+import { 
+  Home, 
+  FileText, 
+  Users, 
+  DollarSign, 
+  Receipt, 
+  CreditCard, 
+  Building2, 
+  BookOpen, 
+  ListTree, 
+  BarChart3, 
+  Settings, 
+  CreditCardIcon,
+  ClipboardEditIcon,
+  FolderKanban,
+  ChartArea,
+  UserCog
+} from "lucide-react"
 
 import {
   Sidebar,
@@ -13,40 +30,96 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
 const menuItems = [
+  // --------------------
+  // Dashboard
+  // --------------------
+ 
   {
     title: "Dashboard",
     url: "/",
-    icon: Home,
+    icon: ChartArea,
+  },
+
+  // --------------------
+  // Sales Section
+  // --------------------
+  {
+    title: "Invoices",
+    url: "/invoices",
+    icon: FileText,
   },
   {
-    title: "Deals",
-    url: "/deals",
+    title: "Payments",
+    url: "/payments",
     icon: DollarSign,
   },
   {
-    title: "Contacts",
-    url: "/contacts",
-    icon: Contact,
+    title: "Customers",
+    url: "/customers",
+    icon: Users,
+  },
+
+  // --------------------
+  // Expenses Section
+  // --------------------
+  {
+    title: "Bills",
+    url: "/bills",
+    icon: Receipt,
   },
   {
-    title: "Tasks",
-    url: "/tasks",
-    icon: CheckSquare,
+    title: "Vendors",
+    url: "/vendors",
+    icon: Building2,
   },
   {
-    title: "Integrations",
-    url: "/integrations",
-    icon: Zap,
+    title: "Expenses",
+    url: "/expenses",
+    icon: ClipboardEditIcon,
   },
+
+  // --------------------
+  // Accounting Section
+  // --------------------
+  {
+    title: "Chart of Accounts",
+    url: "/accounts",
+    icon: ListTree,
+  },
+  {
+    title: "Journal Entries",
+    url: "/journal",
+    icon: BookOpen,
+  },
+  {
+    title: "Reports",
+    url: "/reports",
+    icon: BarChart3,
+  },
+  {
+    title: "Bankings",
+    url: "/bankings",
+    icon: CreditCardIcon,
+  },
+
+  // --------------------
+  // Settings
+  // --------------------
   {
     title: "Settings",
     url: "/settings",
     icon: Settings,
+  },
+  {
+    title: "Account Overview",
+    url: "/overview",
+    icon: UserCog,
   },
 ]
 
@@ -60,9 +133,10 @@ export function AppSidebar() {
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <BarChart3 className="h-4 w-4" />
           </div>
-          <span className="text-lg font-semibold">Sales CRM</span>
+          <span className="text-lg font-semibold">PetroBook</span>
         </div>
       </SidebarHeader>
+
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent>
@@ -81,6 +155,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
       <SidebarFooter className="p-4">
         <div className="flex items-center gap-3">
           <Avatar className="h-8 w-8">
