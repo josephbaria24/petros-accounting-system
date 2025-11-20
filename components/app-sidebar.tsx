@@ -1,12 +1,9 @@
 "use client"
 
 import { 
-  Home, 
-  FileText, 
-  Users, 
-  DollarSign, 
+  ChartArea,
+  DollarSign,
   Receipt, 
-  CreditCard, 
   Building2, 
   BookOpen, 
   ListTree, 
@@ -14,9 +11,8 @@ import {
   Settings, 
   CreditCardIcon,
   ClipboardEditIcon,
-  FolderKanban,
-  ChartArea,
-  UserCog
+  UserCog,
+  FolderKanban
 } from "lucide-react"
 
 import {
@@ -29,97 +25,59 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarGroupLabel,
 } from "@/components/ui/sidebar"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
-const menuItems = [
-  // --------------------
-  // Dashboard
-  // --------------------
- 
+const groupedMenu = [
   {
-    title: "Dashboard",
-    url: "/",
-    icon: ChartArea,
+    label: "Dashboard",
+    items: [
+      { title: "Dashboard", url: "/", icon: ChartArea },
+    ]
   },
 
-  // --------------------
-  // Sales Section
-  // --------------------
   {
-    title: "Invoices",
-    url: "/invoices",
-    icon: FileText,
-  },
-  {
-    title: "Payments",
-    url: "/payments",
-    icon: DollarSign,
-  },
-  {
-    title: "Customers",
-    url: "/customers",
-    icon: Users,
+    label: "Sales",
+    items: [
+      { title: "Sales", url: "/sales", icon: DollarSign },
+    ]
   },
 
-  // --------------------
-  // Expenses Section
-  // --------------------
   {
-    title: "Bills",
-    url: "/bills",
-    icon: Receipt,
-  },
-  {
-    title: "Vendors",
-    url: "/vendors",
-    icon: Building2,
-  },
-  {
-    title: "Expenses",
-    url: "/expenses",
-    icon: ClipboardEditIcon,
+    label: "Expenses",
+    items: [
+      { title: "Bills", url: "/bills", icon: Receipt },
+      { title: "Vendors", url: "/vendors", icon: Building2 },
+      { title: "Expenses", url: "/expenses", icon: ClipboardEditIcon },
+    ]
   },
 
-  // --------------------
-  // Accounting Section
-  // --------------------
   {
-    title: "Chart of Accounts",
-    url: "/accounts",
-    icon: ListTree,
-  },
-  {
-    title: "Journal Entries",
-    url: "/journal",
-    icon: BookOpen,
-  },
-  {
-    title: "Reports",
-    url: "/reports",
-    icon: BarChart3,
-  },
-  {
-    title: "Bankings",
-    url: "/bankings",
-    icon: CreditCardIcon,
+    label: "Accounting",
+    items: [
+      { title: "Chart of Accounts", url: "/accounts", icon: ListTree },
+      { title: "Journal Entries", url: "/journal", icon: BookOpen },
+      { title: "Reports", url: "/reports", icon: BarChart3 },
+    ]
   },
 
-  // --------------------
-  // Settings
-  // --------------------
   {
-    title: "Settings",
-    url: "/settings",
-    icon: Settings,
+    label: "Banking",
+    items: [
+      { title: "Bankings", url: "/bankings", icon: CreditCardIcon },
+    ]
   },
+
   {
-    title: "Account Overview",
-    url: "/overview",
-    icon: UserCog,
+    label: "Settings",
+    items: [
+      { title: "Settings", url: "/settings", icon: Settings },
+      { title: "Account Overview", url: "/overview", icon: UserCog },
+    ]
   },
 ]
 
@@ -138,22 +96,25 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {menuItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={pathname === item.url}>
-                    <Link href={item.url}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {groupedMenu.map((group) => (
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild isActive={pathname === item.url}>
+                      <Link href={item.url}>
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
 
       <SidebarFooter className="p-4">
@@ -162,7 +123,6 @@ export function AppSidebar() {
             <AvatarImage
               src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face"
               alt="John Doe"
-              className="object-cover"
             />
             <AvatarFallback>JD</AvatarFallback>
           </Avatar>
