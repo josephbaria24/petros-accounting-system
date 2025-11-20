@@ -1,4 +1,4 @@
-// File: D:\PETROSPHERE_PROJECT\Petrosphere-accounting-system\app\layout.tsx
+// File: C:\Users\ASUS\Desktop\accounting\petros-accounting-system\app\layout.tsx
 import * as entry from '../../../app/layout.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 
