@@ -88,9 +88,14 @@ export function AppSidebar() {
     <Sidebar className="border-r">
       <SidebarHeader className="p-6">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <BarChart3 className="h-4 w-4" />
-          </div>
+          <div className="flex h-12 w-12 items-center justify-center overflow-hidden">
+  <img
+    src="/weblogo.png"
+    alt="Company Logo"
+    className="h-full w-full object-contain"
+  />
+</div>
+
           <span className="text-lg font-semibold">PetroBook</span>
         </div>
       </SidebarHeader>
