@@ -11,7 +11,7 @@ const geist = Geist({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "PetroBook",
-  description: "Modern Sales CRM Interface"
+  description: "Modern Sales CRM Interface",
 }
 
 export default function RootLayout({
@@ -21,6 +21,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <link
+          rel="icon"
+          href="/weblogo.png"
+          type="image/png"
+        />
+      </head>
       <body className={geist.className}>
         <SidebarProvider>
           <div className="flex min-h-screen w-full">
