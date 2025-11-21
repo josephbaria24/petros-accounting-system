@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
+import { ModeToggle } from "./mode-toggle"
 
 export function Topbar() {
   return (
@@ -25,6 +26,7 @@ export function Topbar() {
       </div>
 
       <div className="flex items-center gap-4">
+        <ModeToggle />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="relative">

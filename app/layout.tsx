@@ -5,6 +5,8 @@ import "./globals.css"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { Toaster } from "@/components/ui/toaster"
+import { Topbar } from "@/components/topbar"
+import { ThemeProvider } from "@/components/theme-provider"
 
 const inter = Inter({ subsets: ["latin"] })
 const geist = Geist({ subsets: ["latin"] })
@@ -24,7 +26,7 @@ export default function RootLayout({
       <head>
         <link
           rel="icon"
-          href="/weblogo.png"
+          href="/petrobook.png"
           type="image/png"
         />
       </head>
@@ -32,7 +34,21 @@ export default function RootLayout({
         <SidebarProvider>
           <div className="flex min-h-screen w-full">
             <AppSidebar />
-            <main className="flex-1 overflow-auto">{children}</main>
+           
+            
+            <main className="flex-1 overflow-auto">
+              
+              
+            <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+              <Topbar />
+            
+            
+            
+            {children}
+            
+            
+            </ThemeProvider>
+            </main>
           </div>
         </SidebarProvider>
         <Toaster />

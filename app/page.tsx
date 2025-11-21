@@ -38,7 +38,7 @@ const dashboardStats = [
 export default function Dashboard() {
   return (
     <div className="flex flex-col min-h-screen">
-      <Topbar />
+     
 
       <div className="flex-1 space-y-4 p-8 pt-6">
         <div className="flex items-center justify-between space-y-2">
