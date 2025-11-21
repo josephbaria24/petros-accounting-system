@@ -11,8 +11,7 @@ import {
   Settings, 
   CreditCardIcon,
   ClipboardEditIcon,
-  UserCog,
-  FolderKanban
+  UserCog
 } from "lucide-react"
 
 import {
@@ -35,25 +34,17 @@ import { usePathname } from "next/navigation"
 const groupedMenu = [
   {
     label: "Dashboard",
-    items: [
-      { title: "Dashboard", url: "/", icon: ChartArea },
-    ]
+    items: [{ title: "Dashboard", url: "/", icon: ChartArea }]
   },
 
   {
     label: "Sales",
-    items: [
-      { title: "Sales", url: "/sales", icon: DollarSign },
-    ]
+    items: [{ title: "Sales", url: "/sales", icon: DollarSign }]
   },
 
   {
     label: "Expenses",
-    items: [
-      { title: "Bills", url: "/bills", icon: Receipt },
-      { title: "Vendors", url: "/vendors", icon: Building2 },
-      { title: "Expenses", url: "/expenses", icon: ClipboardEditIcon },
-    ]
+    items: [{ title: "Expenses", url: "/expenses", icon: Receipt }]
   },
 
   {
@@ -67,9 +58,7 @@ const groupedMenu = [
 
   {
     label: "Banking",
-    items: [
-      { title: "Bankings", url: "/bankings", icon: CreditCardIcon },
-    ]
+    items: [{ title: "Bankings", url: "/bankings", icon: CreditCardIcon }]
   },
 
   {
@@ -87,16 +76,12 @@ export function AppSidebar() {
   return (
     <Sidebar className="border-r">
       <SidebarHeader className="p-6">
-        <div className="flex items-center gap-2">
-          <div className=" p-2 flex h-12 w-auto items-center justify-center overflow-hidden">
-  <img
-    src="/petrobook2.png"
-    alt="Company Logo"
-    className="h-full w-full object-contain"
-  />
-</div>
-
-        
+        <div className="p-2 flex h-12 w-auto items-center justify-center overflow-hidden">
+          <img
+            src="/petrobook2.png"
+            alt="Company Logo"
+            className="h-full w-full object-contain"
+          />
         </div>
       </SidebarHeader>
 
@@ -126,7 +111,7 @@ export function AppSidebar() {
         <div className="flex items-center gap-3">
           <Avatar className="h-8 w-8">
             <AvatarImage
-              src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face"
+              src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e"
               alt="John Doe"
             />
             <AvatarFallback>JD</AvatarFallback>
