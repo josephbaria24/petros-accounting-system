@@ -44,7 +44,9 @@ const groupedMenu = [
 
   {
     label: "Expenses",
-    items: [{ title: "Expenses", url: "/expenses", icon: Receipt }]
+    items: [{ title: "Expenses", url: "/expenses", icon: Receipt },
+    { title: "Bills", url: "/bills", icon: Receipt }
+    ]
   },
 
   {

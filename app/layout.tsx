@@ -5,6 +5,7 @@ import "./globals.css"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { Toaster } from "@/components/ui/toaster"
+import { Toaster as Sonner } from "@/components/ui/sonner" // Add this line
 import { Topbar } from "@/components/topbar"
 import { ThemeProvider } from "@/components/theme-provider"
 
@@ -52,6 +53,7 @@ export default function RootLayout({
           </div>
         </SidebarProvider>
         <Toaster />
+        <Sonner /> {/* Add this line */}
       </body>
     </html>
   )

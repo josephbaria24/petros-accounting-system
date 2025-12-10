@@ -30,13 +30,13 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { useRouter } from "next/navigation"
 
 type Invoice = Database["public"]["Tables"]["invoices"]["Row"] & {
   customers?: { name: string } | null
 }
 
 type Customer = Database["public"]["Tables"]["customers"]["Row"]
-
 export default function InvoicesTable() {
   const supabase = createClient()
   const [data, setData] = useState<Invoice[]>([])
@@ -48,7 +48,7 @@ export default function InvoicesTable() {
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [creating, setCreating] = useState(false)
-
+  const router = useRouter()
   // Form state
   const [formData, setFormData] = useState({
     customer_id: "",
@@ -184,8 +184,7 @@ export default function InvoicesTable() {
     const random = Math.floor(10000 + Math.random() * 90000)
     return `INV-${year}-${random}`
   }
-
-  const handleCreateInvoice = async () => {
+const handleCreateInvoice = async () => {
     if (!formData.customer_id) {
       alert("Please select a customer")
       return
@@ -202,7 +201,7 @@ export default function InvoicesTable() {
       const { subtotal, taxTotal, total } = calculateTotals()
       const invoiceNo = generateInvoiceNo()
 
-      // Insert invoice
+      // Insert invoice (total_amount and balance_due are generated columns)
       const { data: invoice, error: invoiceError } = await supabase
         .from("invoices")
         .insert({
@@ -213,8 +212,6 @@ export default function InvoicesTable() {
           status: formData.status,
           subtotal,
           tax_total: taxTotal,
-          total_amount: total,
-          balance_due: total,
           notes: formData.notes || null
         })
         .select()
@@ -222,7 +219,7 @@ export default function InvoicesTable() {
 
       if (invoiceError) throw invoiceError
 
-      // Insert invoice items
+      // Insert invoice items (line_total and tax_amount are generated columns)
       const itemsToInsert = items
         .filter(item => item.description.trim())
         .map(item => ({
@@ -230,9 +227,7 @@ export default function InvoicesTable() {
           description: item.description,
           quantity: item.quantity,
           unit_price: item.unit_price,
-          tax_rate: item.tax_rate,
-          line_total: item.quantity * item.unit_price,
-          tax_amount: (item.quantity * item.unit_price) * (item.tax_rate / 100)
+          tax_rate: item.tax_rate
         }))
 
       if (itemsToInsert.length > 0) {
@@ -315,7 +310,7 @@ export default function InvoicesTable() {
   return (
     <div className="space-y-4">
       {/* Summary Stats */}
-      <div className="border rounded-lg p-6 bg-white">
+      <div className="border rounded-lg p-6 bg-card">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold">Invoices</h2>
           <Button
@@ -453,17 +448,16 @@ export default function InvoicesTable() {
 
         <Button 
           className="bg-green-600 hover:bg-green-700 gap-2"
-          onClick={() => setShowCreateDialog(true)}
+          onClick={() => router.push("/sales/invoices/create")}
         >
           <Plus className="h-4 w-4" />
           Create invoice
         </Button>
       </div>
-
       {/* Table */}
-      <div className="border rounded-lg bg-white overflow-hidden">
+      <div className="border rounded-lg bg-card overflow-hidden">
         <table className="w-full">
-          <thead className="bg-gray-50 border-b">
+          <thead className="bg-card border-b">
             <tr>
               <th className="px-4 py-3 text-left w-12">
                 <Checkbox
@@ -494,7 +488,7 @@ export default function InvoicesTable() {
                 const issueDate = new Date(invoice.issue_date || "")
                 
                 return (
-                  <tr key={invoice.id} className="border-b hover:bg-gray-50">
+                  <tr key={invoice.id} className="border-b hover:bg-secondary">
                     <td className="px-4 py-3">
                       <Checkbox
                         checked={selectedRows.has(invoice.id)}
@@ -551,7 +545,7 @@ export default function InvoicesTable() {
         </table>
 
         {/* Pagination */}
-        <div className="flex items-center justify-end gap-4 p-4 border-t bg-gray-50">
+        <div className="flex items-center justify-end gap-4 p-4 border-t bg-card">
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <Button variant="ghost" size="sm" disabled>First</Button>
             <Button variant="ghost" size="sm" disabled>Previous</Button>
@@ -561,208 +555,8 @@ export default function InvoicesTable() {
           </div>
         </div>
       </div>
-
       {/* Create Invoice Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Create New Invoice</DialogTitle>
-            <DialogDescription>
-              Fill in the details below to create a new invoice
-            </DialogDescription>
-          </DialogHeader>
 
-          <div className="space-y-4">
-            {/* Basic Info */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="customer">Customer *</Label>
-                <Select 
-                  value={formData.customer_id} 
-                  onValueChange={(value) => setFormData({...formData, customer_id: value})}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select customer" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {customers.map(customer => (
-                      <SelectItem key={customer.id} value={customer.id}>
-                        {customer.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
-                <Select 
-                  value={formData.status} 
-                  onValueChange={(value: any) => setFormData({...formData, status: value})}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="sent">Sent</SelectItem>
-                    <SelectItem value="paid">Paid</SelectItem>
-                    <SelectItem value="partial">Partial</SelectItem>
-                    <SelectItem value="overdue">Overdue</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="issue_date">Issue Date</Label>
-                <Input
-                  id="issue_date"
-                  type="date"
-                  value={formData.issue_date}
-                  onChange={(e) => setFormData({...formData, issue_date: e.target.value})}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="due_date">Due Date</Label>
-                <Input
-                  id="due_date"
-                  type="date"
-                  value={formData.due_date}
-                  onChange={(e) => setFormData({...formData, due_date: e.target.value})}
-                />
-              </div>
-            </div>
-
-            {/* Items */}
-            <div className="space-y-3">
-              <Label>Invoice Items</Label>
-              <div className="border rounded-lg overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b">
-                    <tr>
-                      <th className="px-3 py-2 text-left text-xs font-semibold">Description</th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold w-24">Qty</th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold w-32">Unit Price</th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold w-24">Tax %</th>
-                      <th className="px-3 py-2 text-left text-xs font-semibold w-32">Total</th>
-                      <th className="px-3 py-2 w-12"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map((item, index) => (
-                      <tr key={index} className="border-b">
-                        <td className="px-3 py-2">
-                          <Input
-                            value={item.description}
-                            onChange={(e) => updateItem(index, "description", e.target.value)}
-                            placeholder="Item description"
-                            className="h-9"
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <Input
-                            type="number"
-                            value={item.quantity}
-                            onChange={(e) => updateItem(index, "quantity", parseFloat(e.target.value) || 0)}
-                            min="1"
-                            className="h-9"
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <Input
-                            type="number"
-                            value={item.unit_price}
-                            onChange={(e) => updateItem(index, "unit_price", parseFloat(e.target.value) || 0)}
-                            min="0"
-                            step="0.01"
-                            className="h-9"
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <Input
-                            type="number"
-                            value={item.tax_rate}
-                            onChange={(e) => updateItem(index, "tax_rate", parseFloat(e.target.value) || 0)}
-                            min="0"
-                            max="100"
-                            step="0.1"
-                            className="h-9"
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-sm">
-                          ₱{((item.quantity * item.unit_price) * (1 + item.tax_rate / 100)).toFixed(2)}
-                        </td>
-                        <td className="px-3 py-2">
-                          {items.length > 1 && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeItem(index)}
-                              className="h-8 w-8 p-0"
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <Button type="button" variant="outline" onClick={addItem} className="w-full">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Item
-              </Button>
-            </div>
-
-            {/* Totals */}
-            <div className="border-t pt-4 space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Subtotal:</span>
-                <span>₱{totals.subtotal.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span>Tax:</span>
-                <span>₱{totals.taxTotal.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-lg font-semibold">
-                <span>Total:</span>
-                <span>₱{totals.total.toFixed(2)}</span>
-              </div>
-            </div>
-
-            {/* Notes */}
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes (Optional)</Label>
-              <Textarea
-                id="notes"
-                value={formData.notes}
-                onChange={(e) => setFormData({...formData, notes: e.target.value})}
-                placeholder="Add any additional notes or terms..."
-                rows={3}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setShowCreateDialog(false)}
-              disabled={creating}
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleCreateInvoice} 
-              disabled={creating}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              {creating ? "Creating..." : "Create Invoice"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
