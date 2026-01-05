@@ -3,14 +3,17 @@
 import CustomerDetails from "@/components/customer-details";
 import { createServer } from "@/lib/supabase-server";
 
-export default async function CustomerPage({ params }: { params: { id: string } }) {
+export default async function CustomerPage({ params }: { params: Promise<{ id: string }> }) {
   const supabase = await createServer();
+  
+  // Await params before using it
+  const { id } = await params;
 
   // 1️⃣ Fetch the customer
   const { data: customer, error } = await supabase
     .from("customers")
     .select("*")
-    .eq("id", params.id)
+    .eq("id", id)
     .single();
 
   if (!customer) {
@@ -21,7 +24,7 @@ export default async function CustomerPage({ params }: { params: { id: string } 
   const { data: invoices } = await supabase
     .from("invoices")
     .select("*")
-    .eq("customer_id", params.id)
+    .eq("customer_id", id)
     .order("issue_date", { ascending: false });
 
   const { data: payments } = await supabase
@@ -37,7 +40,7 @@ export default async function CustomerPage({ params }: { params: { id: string } 
   const { data: attachments } = await supabase
     .from("customer_attachments")
     .select("*")
-    .eq("customer_id", params.id);
+    .eq("customer_id", id);
 
   return (
     <CustomerDetails

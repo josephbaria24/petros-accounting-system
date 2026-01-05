@@ -45,23 +45,23 @@ const groupedMenu = [
   {
     label: "Expenses",
     items: [{ title: "Expenses", url: "/expenses", icon: Receipt },
-    { title: "Bills", url: "/bills", icon: Receipt }
+    // { title: "Bills", url: "/bills", icon: Receipt }
     ]
   },
 
   {
     label: "Accounting",
     items: [
-      { title: "Chart of Accounts", url: "/accounts", icon: ListTree },
-      { title: "Journal Entries", url: "/journal", icon: BookOpen },
+      // { title: "Chart of Accounts", url: "/accounts", icon: ListTree },
+      // { title: "Journal Entries", url: "/journal", icon: BookOpen },
       { title: "Reports", url: "/reports", icon: BarChart3 },
     ]
   },
 
-  {
-    label: "Banking",
-    items: [{ title: "Bankings", url: "/bankings", icon: CreditCardIcon }]
-  },
+  // {
+  //   label: "Banking",
+  //   items: [{ title: "Bankings", url: "/bankings", icon: CreditCardIcon }]
+  // },
 
   {
     label: "Settings",
@@ -113,14 +113,14 @@ export function AppSidebar() {
         <div className="flex items-center gap-3">
           <Avatar className="h-8 w-8">
             <AvatarImage
-              src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e"
+              src="logo.png"
               alt="John Doe"
             />
-            <AvatarFallback>JD</AvatarFallback>
+            <AvatarFallback>PSI</AvatarFallback>
           </Avatar>
           <div className="flex flex-col">
-            <span className="text-sm font-medium">John Doe</span>
-            <span className="text-xs text-muted-foreground">Sales Manager</span>
+            <span className="text-sm font-medium">Admin</span>
+            <span className="text-xs text-muted-foreground">Petrosphere Accounting</span>
           </div>
         </div>
       </SidebarFooter>

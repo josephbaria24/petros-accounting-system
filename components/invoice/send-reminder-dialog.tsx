@@ -1,3 +1,4 @@
+//components\invoice\send-reminder-dialog.tsx
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -101,7 +102,7 @@ export default function SendReminderDialog({
     }
   };
 
-  const generatePdfPreview = async () => {
+const generatePdfPreview = async () => {
     setLoadingPdf(true);
     try {
       const response = await fetch("/api/generate-invoice-pdf", {
@@ -109,7 +110,7 @@ export default function SendReminderDialog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           invoiceId: invoice.id,
-          logoUrl: logoUrl || undefined
+          logoBase64: logoPreview || undefined // Pass the base64 preview
         }),
       });
       
@@ -335,7 +336,7 @@ export default function SendReminderDialog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           invoiceId: invoice.id,
-          logoUrl: logoUrl || undefined
+          logoBase64: logoPreview || undefined // Pass the base64 preview here too
         }),
       });
       if (response.ok) {
@@ -419,11 +420,11 @@ export default function SendReminderDialog({
   </div>
   
   <div style="text-align: center; margin-top: 30px;">
-    <a href="#" style="display: inline-block; padding: 12px 30px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 5px; font-weight: 500;">View Invoice</a>
+    
   </div>
   
   <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280; text-align: center;">
-    <p>Questions? Contact us at your-email@company.com</p>
+    <p>Questions? Contact us at info@petrosphere.com.ph</p>
   </div>
 </div>
       `.trim(),
@@ -587,7 +588,7 @@ export default function SendReminderDialog({
           {/* Left side - Email form */}
           <div className="flex-1 space-y-4 overflow-y-auto pr-4">
             {/* Logo Upload */}
-            <div className="space-y-2 border p-4 rounded-lg bg-slate-50">
+            <div className="space-y-2 border p-4 rounded-lg bg-card">
               <Label>Company Logo</Label>
               <div className="flex items-center gap-2">
                 <Button
@@ -809,8 +810,8 @@ export default function SendReminderDialog({
               </TabsList>
               
               <TabsContent value="email" className="flex-1 overflow-y-auto mt-4">
-                <div className="border rounded-lg bg-white p-4">
-                  <div className="text-xs text-gray-500 mb-3 pb-3 border-b">
+                <div className="border rounded-lg bg-card p-4">
+                  <div className="text-xs 0 mb-3 pb-3 border-b">
                     <div className="flex justify-between mb-1">
                       <span className="font-semibold">From:</span>
                       <span>{emailData.from}</span>
@@ -832,11 +833,11 @@ export default function SendReminderDialog({
               </TabsContent>
               
               <TabsContent value="pdf" className="flex-1 overflow-hidden mt-4">
-                <div className="h-full border rounded-lg bg-gray-50 flex items-center justify-center">
+                <div className="h-full border rounded-lg bg-card flex items-center justify-center">
                   {loadingPdf ? (
                     <div className="flex flex-col items-center gap-2">
-                      <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-                      <p className="text-sm text-gray-500">Loading PDF preview...</p>
+                      <Loader2 className="h-8 w-8 animate-spin " />
+                      <p className="text-sm =">Loading PDF preview...</p>
                     </div>
                   ) : pdfUrl ? (
                     <iframe

@@ -496,7 +496,7 @@ export default function BatchSendReminderDialog({
           {/* Left side - Email form */}
           <div className="w-[400px] space-y-4 overflow-y-auto pr-4">
             {/* Logo Upload */}
-            <div className="space-y-2 border p-4 rounded-lg bg-slate-50">
+            <div className="space-y-2 border p-4 rounded-lg bg-card">
               <Label>Company Logo</Label>
               <div className="flex items-center gap-2">
                 <Button
@@ -586,7 +586,7 @@ export default function BatchSendReminderDialog({
                 onChange={(e) =>
                   setEmailData({ ...emailData, from: e.target.value })
                 }
-                className="bg-gray-50"
+                className="bg-card"
               />
             </div>
 
@@ -627,7 +627,7 @@ export default function BatchSendReminderDialog({
 
           {/* Right side - Invoice list with previews */}
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="mb-4 p-4 bg-card rounded-lg border border-blue-200">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold text-blue-900">Ready to send: {invoicesWithEmail.length}</h3>
@@ -650,11 +650,11 @@ export default function BatchSendReminderDialog({
                     <div
                       key={invoice.id}
                       className={`border rounded-lg ${
-                        hasEmail ? "bg-white" : "bg-gray-50 opacity-75"
+                        hasEmail ? "bg-card" : "bg-gray-50 opacity-75"
                       }`}
                     >
                       <div
-                        className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50"
+                        className="p-4 flex items-center justify-between cursor-pointer hover:bg-secondary"
                         onClick={() => toggleInvoiceExpand(invoice.id)}
                       >
                         <div className="flex-1">

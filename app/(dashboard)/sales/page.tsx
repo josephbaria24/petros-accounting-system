@@ -1,25 +1,37 @@
-//app\sales\page.tsx
 "use client"
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useSearchParams, useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
 
-// ⬇️ Import your components from components/sales-tabs
+// Import your components from components/sales-tabs
 import SalesOverview from "@/components/sales-tabs/sales-overview"
 import InvoicesTable from "@/components/sales-tabs/invoice-table"
 import PaymentsTable from "@/components/sales-tabs/payments-table"
 import CustomersTable from "@/components/sales-tabs/customers-table"
-import { useSearchParams } from "next/navigation";
 
 export default function SalesPage() {
-   const searchParams = useSearchParams();
-  const tabFromURL = searchParams.get("tab") || "overview";
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const tabFromURL = searchParams.get("tab") || "overview"
+  const [activeTab, setActiveTab] = useState(tabFromURL)
+
+  // Update activeTab when URL changes (e.g., when navigating back)
+  useEffect(() => {
+    setActiveTab(tabFromURL)
+  }, [tabFromURL])
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value)
+    // Update URL without full page reload
+    router.push(`/sales?tab=${value}`, { scroll: false })
+  }
 
   return (
     <div className="p-6">
       <h1 className="text-2xl font-semibold mb-4">Sales</h1>
 
-      <Tabs defaultValue={tabFromURL} className="w-full">
-
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="mb-4">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="invoices">Invoices</TabsTrigger>
@@ -42,7 +54,6 @@ export default function SalesPage() {
         <TabsContent value="customers">
           <CustomersTable />
         </TabsContent>
-
       </Tabs>
     </div>
   )

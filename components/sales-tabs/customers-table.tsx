@@ -1,7 +1,8 @@
+//components\sales-tabs\customers-table.tsx
 "use client"
 
 import { useState } from 'react';
-import { Plus, Search, ChevronDown, Upload, X, File } from 'lucide-react';
+import { Plus, Search, ChevronDown, Upload, X, File, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -40,18 +41,14 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-} from "@/components/ui/command"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import ComboboxInput from '../customers/combobox-inputs';
+
 // Type definition
 type Customer = {
   id: string;
@@ -63,9 +60,6 @@ type Customer = {
   opening_balance: number;
 };
 
-
-
-
 export default function CustomersTable() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
@@ -73,6 +67,12 @@ export default function CustomersTable() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
+  const [totalCount, setTotalCount] = useState(0);
+  const [isLoadingPage, setIsLoadingPage] = useState(false);
   
   const router = useRouter();
   type Attachment = {
@@ -100,48 +100,60 @@ export default function CustomersTable() {
     same_as_billing: true, notes: ""
   });
 
-  const filteredCustomers = customers.filter(customer =>
-    customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    customer.company_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    customer.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    customer.phone?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Calculate total pages
+  const totalPages = Math.ceil(totalCount / itemsPerPage);
 
   const toggleSelectAll = () => {
-    if (selectedCustomers.length === filteredCustomers.length) {
+    if (selectedCustomers.length === customers.length) {
       setSelectedCustomers([]);
     } else {
-      setSelectedCustomers(filteredCustomers.map(c => c.id));
+      setSelectedCustomers(customers.map(c => c.id));
     }
   };
 
   const toggleSelect = (id: string) => {
     setSelectedCustomers(prev =>
-    prev.includes(id) ? prev.filter(cid => cid !== id) : [...prev, id]
-
-
+      prev.includes(id) ? prev.filter(cid => cid !== id) : [...prev, id]
     );
   };
 
   useEffect(() => {
-  fetchCustomers();
-}, []);
+    fetchCustomers();
+  }, [currentPage, itemsPerPage, searchQuery]);
 
-const fetchCustomers = async () => {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("customers")
-    .select("*")
-    .order("created_at", { ascending: false });
+  const fetchCustomers = async () => {
+    setIsLoadingPage(true);
+    const supabase = createClient();
+    
+    // Calculate range for pagination
+    const from = (currentPage - 1) * itemsPerPage;
+    const to = from + itemsPerPage - 1;
 
-  if (error) {
-    console.error("Error loading customers:", error);
-    return;
-  }
+    let query = supabase
+      .from("customers")
+      .select("*", { count: 'exact' })
+      .order("created_at", { ascending: false });
 
-  setCustomers(data as Customer[]);
-};
+    // Add search filter if search query exists
+    if (searchQuery.trim()) {
+      query = query.or(`name.ilike.%${searchQuery}%,company_name.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%,phone.ilike.%${searchQuery}%`);
+    }
 
+    // Add pagination
+    query = query.range(from, to);
+
+    const { data, error, count } = await query;
+
+    if (error) {
+      console.error("Error loading customers:", error);
+      setIsLoadingPage(false);
+      return;
+    }
+
+    setCustomers(data as Customer[]);
+    setTotalCount(count || 0);
+    setIsLoadingPage(false);
+  };
 
   const handleBatchAction = (action: string) => {
     console.log(`${action} for customers:`, selectedCustomers);
@@ -171,90 +183,135 @@ const fetchCustomers = async () => {
     }, 1000);
   };
 
-const removeAttachment = (index: number) => {
-  setAttachments(prev => prev.filter((_, i) => i !== index));
-};
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
 
+  const handleSubmit = async () => {
+    setLoading(true);
+    const supabase = createClient();
 
- const handleSubmit = async () => {
-  setLoading(true);
-  const supabase = createClient();
+    const { data, error } = await supabase
+      .from("customers")
+      .insert([
+        {
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          company_name: formData.company_name,
+          mobile: formData.mobile,
+          fax: formData.fax,
+          website: formData.website,
 
-  const { data, error } = await supabase
-    .from("customers")
-    .insert([
-      {
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone,
-        company_name: formData.company_name,
-        mobile: formData.mobile,
-        fax: formData.fax,
-        website: formData.website,
+          currency: formData.currency,
+          primary_payment_method: formData.primary_payment_method,
+          payment_terms: formData.payment_terms,
+          sales_form_delivery_options: formData.sales_form_delivery_options,
+          sales_tax_registration: formData.sales_tax_registration,
 
-        currency: formData.currency,
-        primary_payment_method: formData.primary_payment_method,
-        payment_terms: formData.payment_terms,
-        sales_form_delivery_options: formData.sales_form_delivery_options,
-        sales_tax_registration: formData.sales_tax_registration,
+          opening_balance: parseFloat(formData.opening_balance) || 0,
+          opening_balance_date: formData.opening_balance_date,
 
-        opening_balance: parseFloat(formData.opening_balance) || 0,
-        opening_balance_date: formData.opening_balance_date,
+          billing_street: formData.billing_street,
+          billing_city: formData.billing_city,
+          billing_province: formData.billing_province,
+          billing_zip_code: formData.billing_zip_code,
+          billing_country: formData.billing_country,
 
-        billing_street: formData.billing_street,
-        billing_city: formData.billing_city,
-        billing_province: formData.billing_province,
-        billing_zip_code: formData.billing_zip_code,
-        billing_country: formData.billing_country,
+          shipping_street: formData.shipping_street,
+          shipping_city: formData.shipping_city,
+          shipping_province: formData.shipping_province,
+          shipping_zip_code: formData.shipping_zip_code,
+          shipping_country: formData.shipping_country,
+          shipping_same_as_billing: formData.same_as_billing,
 
-        shipping_street: formData.shipping_street,
-        shipping_city: formData.shipping_city,
-        shipping_province: formData.shipping_province,
-        shipping_zip_code: formData.shipping_zip_code,
-        shipping_country: formData.shipping_country,
-        shipping_same_as_billing: formData.same_as_billing,
+          notes: formData.notes,
+        },
+      ])
+      .select()
+      .single();
 
-        notes: formData.notes,
-      },
-    ])
-    .select()
-    .single();
+    if (error) {
+      console.error("Error saving customer:", error);
+      setLoading(false);
+      return;
+    }
 
-  if (error) {
-    console.error("Error saving customer:", error);
+    // Upload attachments
+    for (const att of attachments) {
+      await supabase.from("customer_attachments").insert([
+        {
+          customer_id: data.id,
+          filename: att.filename,
+          file_url: att.file_url,
+          file_size: att.file_size,
+          file_type: att.file_type,
+        },
+      ]);
+    }
+
+    // Reset to first page and refresh
+    setCurrentPage(1);
+    await fetchCustomers();
+
+    setOpen(false);
+    setFormData({
+      name: "", email: "", phone: "", company_name: "", mobile: "", fax: "", website: "",
+      currency: "PHP", primary_payment_method: "", payment_terms: "", sales_form_delivery_options: "",
+      sales_tax_registration: "", opening_balance: "0", opening_balance_date: new Date().toISOString().split('T')[0],
+      billing_address: "", billing_street: "", billing_city: "", billing_province: "", billing_zip_code: "", billing_country: "Philippines",
+      shipping_address: "", shipping_street: "", shipping_city: "", shipping_province: "", shipping_zip_code: "", shipping_country: "Philippines",
+      same_as_billing: true, notes: ""
+    });
+
+    setAttachments([]);
     setLoading(false);
-    return;
-  }
+  };
 
-  // Upload attachments
-  for (const att of attachments) {
-    await supabase.from("customer_attachments").insert([
-      {
-        customer_id: data.id,
-        filename: att.filename,
-        file_url: att.file_url,
-        file_size: att.file_size,
-        file_type: att.file_type,
-      },
-    ]);
-  }
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPage(newPage);
+      setSelectedCustomers([]); // Clear selections when changing pages
+    }
+  };
 
-  await fetchCustomers(); // refresh list
+  const handleItemsPerPageChange = (value: string) => {
+    setItemsPerPage(parseInt(value));
+    setCurrentPage(1); // Reset to first page
+    setSelectedCustomers([]); // Clear selections
+  };
 
-  setOpen(false);
-  setFormData({
-    name: "", email: "", phone: "", company_name: "", mobile: "", fax: "", website: "",
-    currency: "PHP", primary_payment_method: "", payment_terms: "", sales_form_delivery_options: "",
-    sales_tax_registration: "", opening_balance: "0", opening_balance_date: new Date().toISOString().split('T')[0],
-    billing_address: "", billing_street: "", billing_city: "", billing_province: "", billing_zip_code: "", billing_country: "Philippines",
-    shipping_address: "", shipping_street: "", shipping_city: "", shipping_province: "", shipping_zip_code: "", shipping_country: "Philippines",
-    same_as_billing: true, notes: ""
-  });
-
-  setAttachments([]);
-  setLoading(false);
-};
-
+  // Generate page numbers to display
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxPagesToShow = 5;
+    
+    if (totalPages <= maxPagesToShow) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      if (currentPage <= 3) {
+        for (let i = 1; i <= 4; i++) pages.push(i);
+        pages.push('...');
+        pages.push(totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1);
+        pages.push('...');
+        for (let i = totalPages - 3; i <= totalPages; i++) pages.push(i);
+      } else {
+        pages.push(1);
+        pages.push('...');
+        pages.push(currentPage - 1);
+        pages.push(currentPage);
+        pages.push(currentPage + 1);
+        pages.push('...');
+        pages.push(totalPages);
+      }
+    }
+    
+    return pages;
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -266,7 +323,10 @@ const removeAttachment = (index: number) => {
             <Input
               placeholder="Search"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1); // Reset to first page on search
+              }}
               className="pl-10 bg-card"
             />
           </div>
@@ -503,7 +563,6 @@ const removeAttachment = (index: number) => {
                                 </Button>
                               </div>
                             ))}
-
                           </div>
                         )}
                       </div>
@@ -542,6 +601,7 @@ const removeAttachment = (index: number) => {
             </DropdownMenu>
           </div>
         )}
+
         {/* Table */}
         <div className="border border-border rounded-lg overflow-hidden bg-card">
           <Table>
@@ -549,7 +609,7 @@ const removeAttachment = (index: number) => {
               <TableRow className="bg-muted/50 hover:bg-muted/50">
                 <TableHead className="w-12">
                   <Checkbox
-                    checked={selectedCustomers.length === filteredCustomers.length && filteredCustomers.length > 0}
+                    checked={selectedCustomers.length === customers.length && customers.length > 0}
                     onCheckedChange={toggleSelectAll}
                   />
                 </TableHead>
@@ -563,21 +623,26 @@ const removeAttachment = (index: number) => {
             </TableHeader>
 
             <TableBody>
-              {filteredCustomers.length === 0 ? (
+              {isLoadingPage ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                    No customers yet. Click "New customer" to add one.
+                    Loading...
+                  </TableCell>
+                </TableRow>
+              ) : customers.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    {searchQuery ? 'No customers found matching your search.' : 'No customers yet. Click "New customer" to add one.'}
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredCustomers.map((customer) => (
+                customers.map((customer) => (
                   <TableRow
-                      key={customer.id}
-                      className={`cursor-pointer hover:bg-muted/40 ${selectedCustomers.includes(customer.id) ? 'bg-muted/30' : ''}`}
-                      onClick={() => router.push(`/customers/${customer.id}`)}
-                    >
-
-                    <TableCell>
+                    key={customer.id}
+                    className={`cursor-pointer hover:bg-muted/40 ${selectedCustomers.includes(customer.id) ? 'bg-muted/30' : ''}`}
+                    onClick={() => router.push(`/customers/${customer.id}`)}
+                  >
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox checked={selectedCustomers.includes(customer.id)} onCheckedChange={() => toggleSelect(customer.id)} />
                     </TableCell>
                     <TableCell className="font-medium">{customer.name}</TableCell>
@@ -585,7 +650,7 @@ const removeAttachment = (index: number) => {
                     <TableCell>{customer.phone || 'NONE'}</TableCell>
                     <TableCell>{customer.currency}</TableCell>
                     <TableCell className="text-right">{customer.currency}{customer.opening_balance.toFixed(2)}</TableCell>
-                    <TableCell className="text-center">
+                    <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="link" className="text-primary p-0 h-auto font-normal">
@@ -598,27 +663,89 @@ const removeAttachment = (index: number) => {
                           <DropdownMenuItem onClick={() => handleRowAction('create-sales-receipt', customer.id)}>Create sales receipt</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleRowAction('create-estimate', customer.id)}>Create estimate</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleRowAction('create-charge', customer.id)}>Create charge</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleRowAction('create-time-activity',
-                          customer.id)}>Create time activity</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleRowAction('create-time-activity', customer.id)}>Create time activity</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleRowAction('create-statement', customer.id)}>Create statement</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleRowAction('create-task', customer.id)}>Create task</DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => handleRowAction('make-inactive', customer.id)}>Make inactive</DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleRowAction('request-feedback', customer.id)}>Request feedback</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleRowAction('create-contract', customer.id)}>
-                              Create contract <span className="ml-1 text-pink-500">●</span>
-                              </DropdownMenuItem>
-                              </DropdownMenuContent>
-                              </DropdownMenu>
-                            </TableCell>
-                          </TableRow>
-                          ))
-                          )}
-                    </TableBody>
-                 </Table>
+                          <DropdownMenuItem onClick={() => handleRowAction('create-task', customer.id)}>Create task</DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => handleRowAction('make-inactive', customer.id)}>Make inactive</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleRowAction('request-feedback', customer.id)}>Request feedback</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleRowAction('create-contract', customer.id)}>
+                            Create contract <span className="ml-1 text-pink-500">●</span>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* Pagination Controls */}
+        {totalCount > 0 && (
+          <div className="mt-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Rows per page:</span>
+              <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
+                <SelectTrigger className="w-[80px] h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="text-sm text-muted-foreground ml-4">
+                Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} customers
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1 || isLoadingPage}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </Button>
+
+              <div className="flex items-center gap-1">
+                {getPageNumbers().map((page, index) => (
+                  page === '...' ? (
+                    <span key={`ellipsis-${index}`} className="px-2 text-muted-foreground">...</span>
+                  ) : (
+                    <Button
+                      key={page}
+                      variant={currentPage === page ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handlePageChange(page as number)}
+                      disabled={isLoadingPage}
+                      className="w-9 h-9"
+                    >
+                      {page}
+                    </Button>
+                  )
+                ))}
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages || isLoadingPage}
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
           </div>
-        </div>
-      );
-   
-   } 
+        )}
+      </div>
+    </div>
+  );
+}

@@ -1,9 +1,6 @@
-// app/api/generate-invoice-pdf/route.ts
-
 import { NextRequest, NextResponse } from "next/server";
 import jsPDF from "jspdf";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { createClient } from "@supabase/supabase-js";
 import fs from "fs";
 import path from "path";
 
@@ -12,7 +9,7 @@ import "@/fonts/DejaVuSans-bold.js";
 
 export async function POST(request: NextRequest) {
   try {
-    const { invoiceId } = await request.json();
+    const { invoiceId, logoBase64 } = await request.json();
 
     if (!invoiceId) {
       return NextResponse.json(
@@ -21,22 +18,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Supabase
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
+    // ✅ Supabase — Service Role (NO cookies)
+    const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
       {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-          set(name: string, value: string, options: any) {
-            cookieStore.set({ name, value, ...options });
-          },
-          remove(name: string, options: any) {
-            cookieStore.set({ name, value: "", ...options });
-          },
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
         },
       }
     );
@@ -54,222 +43,213 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       );
     }
-    
-    const money = (v: number | null | undefined) =>
-  `₱${(v ?? 0).toFixed(2)}`;
 
-    
     // Fetch items
     const { data: items } = await supabase
       .from("invoice_items")
       .select("*")
       .eq("invoice_id", invoiceId);
 
-    // Create PDF
+    // ===============================
+    // PDF GENERATION
+    // ===============================
     const doc = new jsPDF();
     doc.setFont("DejaVuSans", "normal");
 
-    let yPos = 20;
-
-    // ===============================
-    // ADD LOGO FROM /public
-    // ===============================
+    // Add watermark logo as background
     try {
-      const logoPath = path.join(
-        process.cwd(),
-        "public",
-        "logo.png"
-      );
+      let imgData = null;
+      
+      // First try to use the provided base64 logo
+      if (logoBase64) {
+        imgData = logoBase64;
+      } else {
+        // Fall back to local logo file
+        const logoPath = path.join(process.cwd(), "public", "logo.png");
+        if (fs.existsSync(logoPath)) {
+          const logoBuffer = fs.readFileSync(logoPath);
+          imgData = `data:image/png;base64,${logoBuffer.toString("base64")}`;
+        }
+      }
 
-      if (fs.existsSync(logoPath)) {
-        const logoBuffer = fs.readFileSync(logoPath);
-        const logoBase64 = logoBuffer.toString("base64");
-
-        // Get image dimensions to maintain aspect ratio
-        const imgData = `data:image/png;base64,${logoBase64}`;
+      if (imgData) {
         const imgProps = doc.getImageProperties(imgData);
         
-        // Set max width for logo (in mm) - adjust as needed
-        const maxLogoWidth = 50;
-        const maxLogoHeight = 35;
+        // Calculate dimensions to maintain aspect ratio
+        // Make it large but centered
+        const maxWidth = 150;
+        let logoWidth = maxWidth;
+        let logoHeight = (imgProps.height * maxWidth) / imgProps.width;
         
-        // Calculate dimensions maintaining aspect ratio
-        let logoWidth = maxLogoWidth;
-        let logoHeight = (imgProps.height * maxLogoWidth) / imgProps.width;
+        // Center the watermark
+        const xPos = (210 - logoWidth) / 2; // A4 width is 210mm
+        const yPos = (297 - logoHeight) / 2; // A4 height is 297mm
         
-        // If height exceeds max, scale based on height instead
-        if (logoHeight > maxLogoHeight) {
-          logoHeight = maxLogoHeight;
-          logoWidth = (imgProps.width * maxLogoHeight) / imgProps.height;
-        }
-
-        doc.addImage(
-          imgData,
-          "PNG",
-          20,
-          15,
-          logoWidth,
-          logoHeight
-        );
-
-        yPos = 15 + logoHeight + 5; // Logo Y position + height + spacing
-      } else {
-        throw new Error("Logo not found in public/");
+        // Add with low opacity (faded effect)
+        doc.saveGraphicsState();
+        doc.setGState({ opacity: 0.1 });
+        doc.addImage(imgData, "PNG", xPos, yPos, logoWidth, logoHeight);
+        doc.restoreGraphicsState();
       }
-    } catch (err) {
-      console.log("Logo not added, using text fallback:", err);
-      doc.setFontSize(16);
-      doc.setFont("DejaVuSans", "bold");
-      doc.text("YOUR COMPANY NAME", 20, yPos);
-      yPos += 15;
+    } catch (error) {
+      console.log("Could not load watermark logo:", error);
     }
 
-    // ===============================
-    // HEADER
-    // ===============================
-    doc.setFontSize(24);
+    // Invoice Header - Left aligned
+    let yPos = 20;
+    doc.setFontSize(28);
     doc.setFont("DejaVuSans", "bold");
-    doc.text("INVOICE", 200, 20, { align: "right" });
+    doc.text("INVOICE", 20, yPos);
 
-    doc.setFontSize(10);
-    doc.setFont("DejaVuSans", "normal");
-    doc.text(`Invoice #: ${invoice.invoice_no}`, 200, 30, { align: "right" });
-    doc.text(
-      `Issue Date: ${new Date(invoice.issue_date).toLocaleDateString()}`,
-      200,
-      36,
-      { align: "right" }
-    );
-    doc.text(
-      `Due Date: ${
-        invoice.due_date
-          ? new Date(invoice.due_date).toLocaleDateString()
-          : "N/A"
-      }`,
-      200,
-      42,
-      { align: "right" }
-    );
-
-    // Company location
-    if (invoice.location) {
-      doc.setFontSize(9);
-      doc.text(invoice.location, 20, yPos);
-      yPos += 10;
-    }
-
-    // ===============================
-    // BILL TO
-    // ===============================
-    yPos += 5;
+    // Invoice details - Left side
+    yPos += 15;
     doc.setFontSize(11);
+    doc.setFont("DejaVuSans", "normal");
+    doc.text(`Invoice Number: ${invoice.invoice_no}`, 20, yPos);
+    
+    yPos += 7;
+    doc.text(`Issue Date: ${new Date(invoice.issue_date).toLocaleDateString()}`, 20, yPos);
+    
+    yPos += 7;
+    doc.text(`Due Date: ${new Date(invoice.due_date).toLocaleDateString()}`, 20, yPos);
+
+    // Customer details
+    yPos += 15;
     doc.setFont("DejaVuSans", "bold");
     doc.text("BILL TO:", 20, yPos);
-    yPos += 6;
-
-    doc.setFontSize(10);
+    
+    yPos += 7;
     doc.setFont("DejaVuSans", "normal");
     doc.text(invoice.customers?.name || "N/A", 20, yPos);
-    yPos += 5;
-
+    
+    if (invoice.customers?.email) {
+      yPos += 6;
+      doc.text(invoice.customers.email, 20, yPos);
+    }
+    
     if (invoice.customers?.billing_address) {
-      const addressLines = invoice.customers.billing_address.split("\n");
-      addressLines.forEach((line: string) => {
-        doc.text(line, 20, yPos);
-        yPos += 5;
-      });
+      yPos += 6;
+      const addressLines = doc.splitTextToSize(invoice.customers.billing_address, 90);
+      doc.text(addressLines, 20, yPos);
+      yPos += (addressLines.length * 6);
     }
 
-    // ===============================
-    // TABLE HEADER
-    // ===============================
-    yPos += 12;
-    const tableTop = yPos;
-
-    doc.setFontSize(9);
+    // Table header
+    yPos += 15;
+    doc.setFillColor(240, 240, 240);
+    doc.rect(15, yPos - 5, 180, 8, "F");
+    
     doc.setFont("DejaVuSans", "bold");
-    doc.text("#", 15, tableTop);
-    doc.text("Description", 25, tableTop);
-    doc.text("Qty", 110, tableTop, { align: "right" });
-    doc.text("Rate", 135, tableTop, { align: "right" });
-    doc.text("Tax", 160, tableTop, { align: "right" });
-    doc.text("Amount", 195, tableTop, { align: "right" });
+    doc.setFontSize(10);
+    doc.text("#", 20, yPos);
+    doc.text("Description", 30, yPos);
+    doc.text("Qty", 120, yPos, { align: "right" });
+    doc.text("Unit Price", 150, yPos, { align: "right" });
+    doc.text("Amount", 190, yPos, { align: "right" });
 
-    yPos = tableTop + 2;
-    doc.line(15, yPos, 195, yPos);
-    yPos += 6;
-
-    // ===============================
-    // TABLE ROWS
-    // ===============================
+    // Table rows
+    yPos += 10;
     doc.setFont("DejaVuSans", "normal");
-
+    doc.setFontSize(9);
+    
     items?.forEach((item: any, index: number) => {
-      if (yPos > 270) {
+      if (yPos > 250) {
         doc.addPage();
         yPos = 20;
+        
+        // Repeat table header on new page
+        doc.setFillColor(240, 240, 240);
+        doc.rect(15, yPos - 5, 180, 8, "F");
+        doc.setFont("DejaVuSans", "bold");
+        doc.setFontSize(10);
+        doc.text("#", 20, yPos);
+        doc.text("Description", 30, yPos);
+        doc.text("Qty", 120, yPos, { align: "right" });
+        doc.text("Unit Price", 150, yPos, { align: "right" });
+        doc.text("Amount", 190, yPos, { align: "right" });
+        yPos += 10;
+        doc.setFont("DejaVuSans", "normal");
+        doc.setFontSize(9);
       }
 
-      const lineTotal =
-        item.line_total || item.quantity * item.unit_price;
+      const lineTotal = item.line_total || item.quantity * item.unit_price;
 
-      doc.text(String(index + 1), 15, yPos);
+      doc.text(String(index + 1), 20, yPos);
+      
+      // Handle long descriptions
+      const descLines = doc.splitTextToSize(item.description || "-", 80);
+      doc.text(descLines, 30, yPos);
+      
+      doc.text(String(item.quantity), 120, yPos, { align: "right" });
+      doc.text(`₱${item.unit_price.toFixed(2)}`, 150, yPos, { align: "right" });
+      doc.text(`₱${lineTotal.toFixed(2)}`, 190, yPos, { align: "right" });
 
-      const desc = doc.splitTextToSize(
-        item.description || item.product_service || "-",
-        75
-      );
-      doc.text(desc, 25, yPos);
-
-      doc.text(String(item.quantity), 110, yPos, { align: "right" });
-      doc.text(`₱${item.unit_price.toFixed(2)}`, 135, yPos, {
-        align: "right",
-      });
-      doc.text(`${item.tax_rate || 0}%`, 160, yPos, { align: "right" });
-      doc.text(`₱${lineTotal.toFixed(2)}`, 195, yPos, {
-        align: "right",
-      });
-
-      yPos += Math.max(6, desc.length * 5);
+      yPos += Math.max(7, descLines.length * 5);
     });
 
-    // ===============================
-    // TOTALS
-    // ===============================
-    yPos += 5;
-    doc.line(15, yPos, 195, yPos);
-    yPos += 8;
-
-    doc.text("Subtotal:", 155, yPos, { align: "right" });
-    doc.text(`₱${(invoice.subtotal ?? 0).toFixed(2)}`, 195, yPos, {
-      align: "right",
-    });
-    yPos += 6;
-
-    doc.text("Tax Total:", 155, yPos, { align: "right" });
-    doc.text(`₱${(invoice.tax_total ?? 0).toFixed(2)}`, 195, yPos, {
-      align: "right",
-    });
-    yPos += 8;
-
+    // Totals
+    yPos += 10;
     doc.setFont("DejaVuSans", "bold");
-    doc.text("BALANCE DUE:", 155, yPos, { align: "right" });
-    const balanceDue =
-      invoice.balance_due ??
-      invoice.total_amount ??
-      0;
+    doc.setFontSize(10);
+    
+    // Subtotal
+    doc.text("Subtotal:", 150, yPos);
+    doc.text(`₱${Number(invoice.subtotal || 0).toFixed(2)}`, 190, yPos, { align: "right" });
+    
+    // Tax if applicable
+    if (invoice.tax_amount && invoice.tax_amount > 0) {
+      yPos += 7;
+      doc.setFont("DejaVuSans", "normal");
+      doc.text(`Tax (${invoice.tax_rate || 0}%):`, 150, yPos);
+      doc.text(`₱${Number(invoice.tax_amount).toFixed(2)}`, 190, yPos, { align: "right" });
+    }
+    
+    // Discount if applicable
+    if (invoice.discount_amount && invoice.discount_amount > 0) {
+      yPos += 7;
+      doc.setFont("DejaVuSans", "normal");
+      doc.text("Discount:", 150, yPos);
+      doc.text(`-₱${Number(invoice.discount_amount).toFixed(2)}`, 190, yPos, { align: "right" });
+    }
+    
+    // Total
+    yPos += 10;
+    doc.setFillColor(240, 240, 240);
+    doc.rect(145, yPos - 6, 50, 10, "F");
+    doc.setFont("DejaVuSans", "bold");
+    doc.setFontSize(12);
+    doc.text("TOTAL:", 150, yPos);
+    doc.text(`₱${Number(invoice.total_amount).toFixed(2)}`, 190, yPos, { align: "right" });
 
-    doc.text(`₱${balanceDue.toFixed(2)}`, 195, yPos, {
-      align: "right",
-    });
-
-
-    // Footer
-    doc.setFontSize(8);
-    doc.setFont("DejaVuSans", "normal");
-    doc.text("Thank you for your business!", 105, 285, {
-      align: "center",
-    });
+    // Footer - Add to every page
+    const pageCount = doc.internal.pages.length - 1;
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      
+      // Separator line
+      doc.setDrawColor(200, 200, 200);
+      doc.line(20, 270, 190, 270);
+      
+      // Footer content
+      doc.setFont("DejaVuSans", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 100);
+      
+      doc.text("Generated by PETROBOOK", 105, 277, { align: "center" });
+      
+      doc.setFontSize(9);
+      doc.setFont("DejaVuSans", "bold");
+      doc.text("Need Help?", 20, 280);
+      
+      doc.setFont("DejaVuSans", "normal");
+      doc.setFontSize(8);
+      doc.text("Phone: Globe/TM 0917-708-7994", 20, 285);
+      doc.text("Email: info@petrosphere.com.ph", 20, 290);
+      doc.text("Office Hours: Monday - Friday, 8:00 AM - 5:00 PM", 20, 295);
+      
+      // Reset text color
+      doc.setTextColor(0, 0, 0);
+    }
 
     // Output
     const pdfBlob = doc.output("blob");

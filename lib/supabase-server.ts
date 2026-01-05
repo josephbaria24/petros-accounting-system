@@ -15,18 +15,11 @@ export async function createServer() {
           return cookieStore.get(name)?.value;
         },
         set(name: string, value: string, options: any) {
-          try {
-            cookieStore.set({ name, value, ...options });
-          } catch (err) {
-            console.error("Could not set cookie", err);
-          }
+          // Server Components can only read cookies, not modify them
+          // Cookie modifications should happen in Server Actions or Route Handlers
         },
         remove(name: string, options: any) {
-          try {
-            cookieStore.set({ name, value: "", ...options });
-          } catch (err) {
-            console.error("Could not remove cookie", err);
-          }
+          // Server Components can only read cookies, not modify them
         }
       }
     }

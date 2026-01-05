@@ -1,3 +1,4 @@
+//components\sales-tabs\invoice-table.tsx
 "use client"
 
 import { useState, useEffect } from "react"
@@ -448,7 +449,7 @@ export default function InvoicesTable() {
                         <Button 
                           variant="link" 
                           className="text-blue-600 p-0 h-auto cursor-pointer"
-                          onClick={() => router.push(`/invoices/${invoice.id}`)}
+                          onClick={() => router.push(`/invoices/${invoice.id}?returnTab=invoices`)}
                         >
                           View/Edit
                         </Button>

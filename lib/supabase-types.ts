@@ -341,6 +341,7 @@ export interface Database {
         Row: {
           id: string
           invoice_id: string | null
+          invoice_no: string | null
           amount: number
           payment_method: string | null
           payment_date: string | null
