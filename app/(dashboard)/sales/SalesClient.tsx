@@ -1,3 +1,4 @@
+//app\(dashboard)\sales\SalesClient.tsx
 "use client";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";

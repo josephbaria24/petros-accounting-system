@@ -1,5 +1,4 @@
-//app\(dashboard)\page.tsx
-
+//app/(dashboard)/page.tsx
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -8,6 +7,7 @@ import { CalendarDateRangePicker } from "@/components/date-range-picker"
 import { DollarSign, TrendingUp, Users, Target, Plus, FileText, CreditCard } from "lucide-react"
 import { createServer } from "@/lib/supabase-server"
 import Link from "next/link"
+import { redirect } from "next/navigation"
 
 // Helper function to get date ranges
 function getDateRanges() {
@@ -21,6 +21,14 @@ function getDateRanges() {
 
 export default async function Dashboard() {
   const supabase = await createServer()
+  
+  // Auth guard - check if user is authenticated
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) {
+    redirect('/login')
+  }
+
   const { currentMonth, lastMonth, lastMonthEnd } = getDateRanges()
 
   // Fetch invoices data
@@ -85,13 +93,12 @@ export default async function Dashboard() {
   const totalUnpaid = invoices?.filter(inv => inv.status === 'unpaid' || inv.status === 'overdue')
     .reduce((sum, inv) => sum + Number(inv.balance_due || inv.total_amount), 0) || 0
 
-
-    const customersThisMonth = newCustomersThisMonth ?? 0
-const customersLastMonth = newCustomersLastMonth ?? 0
-const customerGrowth = customersLastMonth > 0 
-
-  ? ((customersThisMonth - customersLastMonth) / customersLastMonth * 100).toFixed(1) 
-  : customersThisMonth > 0 ? "100" : "0"
+  const customersThisMonth = newCustomersThisMonth ?? 0
+  const customersLastMonth = newCustomersLastMonth ?? 0
+  const customerGrowth = customersLastMonth > 0 
+    ? ((customersThisMonth - customersLastMonth) / customersLastMonth * 100).toFixed(1) 
+    : customersThisMonth > 0 ? "100" : "0"
+    
   // Recent invoices with customer info
   const { data: recentInvoices } = await supabase
     .from("invoices")
