@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ArrowLeft, Download, Plus, Trash2 } from "lucide-react"
+import { ArrowLeft, Download, FileText, Plus, RefreshCw, Trash2, Upload } from "lucide-react"
 
 type Customer = {
   id: string
@@ -33,6 +33,16 @@ type InvoiceItem = {
   class: string | null
 }
 
+type CustomerAttachment = {
+  id: string
+  customer_id: string
+  filename: string
+  file_url: string
+  file_size: number | null
+  file_type: string | null
+  uploaded_at: string
+}
+
 export default function InvoiceDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -45,6 +55,12 @@ export default function InvoiceDetailPage() {
   const [isEditing, setIsEditing] = useState(false)
   const [loading, setLoading] = useState(true)
   
+  const [attachments, setAttachments] = useState<CustomerAttachment[]>([])
+  const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null)
+  const [replacingAttachmentId, setReplacingAttachmentId] = useState<string | null>(null)
+
+  const [uploadingAttachment, setUploadingAttachment] = useState(false)
+
   const [editForm, setEditForm] = useState({
     customer_id: "",
     invoice_no: "",
@@ -89,6 +105,17 @@ export default function InvoiceDetailPage() {
             memo: invoiceData.memo || "",
             terms: invoiceData.terms || "Due on receipt"
           })
+          // Load customer attachments
+          if (invoiceData.customer_id) {
+            const { data: attachmentsData } = await supabase
+              .from("customer_attachments")
+              .select("*")
+              .eq("customer_id", invoiceData.customer_id)
+              .order("uploaded_at", { ascending: false })
+
+            console.log("Loaded attachments:", attachmentsData)
+            setAttachments(attachmentsData || [])
+          }
 
           // Load invoice items
           const { data: itemsData } = await supabase
@@ -109,6 +136,185 @@ export default function InvoiceDetailPage() {
 
     loadData()
   }, [invoiceId])
+
+
+
+  const handleDeleteAttachment = async (attachmentId: string, fileUrl: string) => {
+    if (!confirm("Are you sure you want to delete this attachment?")) {
+      return
+    }
+
+    setDeletingAttachmentId(attachmentId)
+    try {
+      // Delete from database
+      const { error } = await supabase
+        .from("customer_attachments")
+        .delete()
+        .eq("id", attachmentId)
+
+      if (error) throw error
+
+      // Update local state
+      setAttachments(attachments.filter(a => a.id !== attachmentId))
+      alert("Attachment deleted successfully!")
+    } catch (error) {
+      console.error("Error deleting attachment:", error)
+      alert("Failed to delete attachment. Please try again.")
+    } finally {
+      setDeletingAttachmentId(null)
+    }
+  }
+
+  const handleReplaceAttachment = async (attachmentId: string, oldFileUrl: string) => {
+      const input = document.createElement("input")
+      input.type = "file"
+      input.accept = "image/*,application/pdf"  // Changed from "*/*"
+      
+      input.onchange = async (e: any) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        // Validate file type
+        const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'application/pdf']
+        if (!validTypes.includes(file.type)) {
+          alert("Only image files (JPEG, PNG, GIF, WebP) and PDF files are allowed")
+          return
+        }
+
+        setReplacingAttachmentId(attachmentId)
+      try {
+        const formData = new FormData()
+        formData.append("attachment", file)
+
+        // Upload new file
+        const uploadResponse = await fetch("/api/upload-customer-attachment", {
+          method: "POST",
+          body: formData,
+        })
+
+        if (!uploadResponse.ok) {
+          throw new Error("Failed to upload file")
+        }
+
+        const uploadResult = await uploadResponse.json()
+
+        // Update database with new file URL
+        const { error } = await supabase
+          .from("customer_attachments")
+          .update({
+            filename: uploadResult.filename,
+            file_url: uploadResult.url,
+            file_size: file.size,
+            file_type: file.type,
+            uploaded_at: new Date().toISOString()
+          })
+          .eq("id", attachmentId)
+
+        if (error) throw error
+
+        // Update local state
+        setAttachments(attachments.map(a => 
+          a.id === attachmentId 
+            ? {
+                ...a,
+                filename: uploadResult.filename,
+                file_url: uploadResult.url,
+                file_size: file.size,
+                file_type: file.type,
+                uploaded_at: new Date().toISOString()
+              }
+            : a
+        ))
+
+        alert("Attachment replaced successfully!")
+      } catch (error) {
+        console.error("Error replacing attachment:", error)
+        alert("Failed to replace attachment. Please try again.")
+      } finally {
+        setReplacingAttachmentId(null)
+      }
+    }
+
+    input.click()
+  }
+
+  
+
+  const handleAddAttachment = async () => {
+    if (!invoice?.customer_id) {
+      alert("No customer selected for this invoice")
+      return
+    }
+
+    const input = document.createElement("input")
+    input.type = "file"
+    input.accept = "image/*,application/pdf"
+    input.multiple = false
+    
+    input.onchange = async (e: any) => {
+      const file = e.target.files?.[0]
+      if (!file) return
+
+      // Validate file type
+      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'application/pdf']
+      if (!validTypes.includes(file.type)) {
+        alert("Only image files (JPEG, PNG, GIF, WebP) and PDF files are allowed")
+        return
+      }
+
+      // Validate file size (e.g., max 10MB)
+      const maxSize = 10 * 1024 * 1024 // 10MB
+      if (file.size > maxSize) {
+        alert("File size must be less than 10MB")
+        return
+      }
+
+      setUploadingAttachment(true)
+      try {
+        const formData = new FormData()
+        formData.append("attachment", file)
+
+        // Upload file
+        const uploadResponse = await fetch("/api/upload-customer-attachment", {
+          method: "POST",
+          body: formData,
+        })
+
+        if (!uploadResponse.ok) {
+          throw new Error("Failed to upload file")
+        }
+
+        const uploadResult = await uploadResponse.json()
+
+        // Save to database
+        const { data, error } = await supabase
+          .from("customer_attachments")
+          .insert({
+            customer_id: invoice.customer_id,
+            filename: uploadResult.filename,
+            file_url: uploadResult.url,
+            file_size: file.size,
+            file_type: file.type
+          })
+          .select()
+          .single()
+
+        if (error) throw error
+
+        // Update local state
+        setAttachments([data, ...attachments])
+        alert("Attachment added successfully!")
+      } catch (error) {
+        console.error("Error adding attachment:", error)
+        alert("Failed to add attachment. Please try again.")
+      } finally {
+        setUploadingAttachment(false)
+      }
+    }
+
+    input.click()
+  }
+
 
   const handleItemChange = (index: number, field: string, value: any) => {
     const updatedItems = [...items]
@@ -654,6 +860,112 @@ export default function InvoiceDetailPage() {
           )}
         </CardContent>
       </Card>
+    {/* Customer Attachments */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+          <CardTitle>Customer Attachments ({attachments.length})</CardTitle>
+          <Button 
+            onClick={handleAddAttachment} 
+            size="sm" 
+            variant="outline"
+            disabled={uploadingAttachment || !invoice?.customer_id}
+          >
+            {uploadingAttachment ? (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                Uploading...
+              </>
+            ) : (
+              <>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Attachment
+              </>
+            )}
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {attachments.length > 0 ? (
+            <div className="space-y-3">
+              {attachments.map((attachment) => (
+                <div
+                  key={attachment.id}
+                  className="flex items-center justify-between p-3 border rounded-lg hover:bg-secondary"
+                >
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <FileText className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium truncate">{attachment.filename}</p>
+                      <p className="text-sm text-gray-500">
+                        Uploaded {new Date(attachment.uploaded_at).toLocaleDateString()}
+                        {attachment.file_size && 
+                          ` • ${(attachment.file_size / 1024).toFixed(2)} KB`
+                        }
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 flex-shrink-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(attachment.file_url, "_blank")}
+                      title="View file"
+                    >
+                      View
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const link = document.createElement('a')
+                        link.href = attachment.file_url
+                        link.download = attachment.filename
+                        link.click()
+                      }}
+                      title="Download file"
+                    >
+                      <Download className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleReplaceAttachment(attachment.id, attachment.file_url)}
+                      disabled={replacingAttachmentId === attachment.id}
+                      title="Replace file"
+                    >
+                      {replacingAttachmentId === attachment.id ? (
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDeleteAttachment(attachment.id, attachment.file_url)}
+                      disabled={deletingAttachmentId === attachment.id}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      title="Delete file"
+                    >
+                      {deletingAttachmentId === attachment.id ? (
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <FileText className="h-12 w-12 mx-auto mb-2 text-gray-400" />
+              <p>No attachments yet</p>
+              <p className="text-sm">Click "Add Attachment" to upload files</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
     </div>
   )
 }

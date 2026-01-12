@@ -371,7 +371,7 @@ export interface Database {
         }
       }
 
-      vendors: {
+      suppliers: {
         Row: {
           id: string
           name: string

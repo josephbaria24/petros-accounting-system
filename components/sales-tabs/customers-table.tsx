@@ -187,86 +187,88 @@ export default function CustomersTable() {
     setAttachments(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = async () => {
-    setLoading(true);
-    const supabase = createClient();
+// Replace your current handleSubmit function (around line 168) with this:
 
-    const { data, error } = await supabase
-      .from("customers")
-      .insert([
-        {
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone,
-          company_name: formData.company_name,
-          mobile: formData.mobile,
-          fax: formData.fax,
-          website: formData.website,
+const handleSubmit = async () => {
+  setLoading(true);
+  const supabase = createClient();
 
-          currency: formData.currency,
-          primary_payment_method: formData.primary_payment_method,
-          payment_terms: formData.payment_terms,
-          sales_form_delivery_options: formData.sales_form_delivery_options,
-          sales_tax_registration: formData.sales_tax_registration,
+  const { data, error } = await supabase
+    .from("customers")
+    .insert([
+      {
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        company_name: formData.company_name,
+        mobile: formData.mobile,
+        fax: formData.fax,
+        website: formData.website,
 
-          opening_balance: parseFloat(formData.opening_balance) || 0,
-          opening_balance_date: formData.opening_balance_date,
+        currency: formData.currency,
+        primary_payment_method: formData.primary_payment_method,
+        payment_terms: formData.payment_terms,
+        sales_form_delivery_options: formData.sales_form_delivery_options,
+        sales_tax_registration: formData.sales_tax_registration,
 
-          billing_street: formData.billing_street,
-          billing_city: formData.billing_city,
-          billing_province: formData.billing_province,
-          billing_zip_code: formData.billing_zip_code,
-          billing_country: formData.billing_country,
+        opening_balance: parseFloat(formData.opening_balance) || 0,
+        opening_balance_date: formData.opening_balance_date,
 
-          shipping_street: formData.shipping_street,
-          shipping_city: formData.shipping_city,
-          shipping_province: formData.shipping_province,
-          shipping_zip_code: formData.shipping_zip_code,
-          shipping_country: formData.shipping_country,
-          shipping_same_as_billing: formData.same_as_billing,
+        billing_street: formData.billing_street,
+        billing_city: formData.billing_city,
+        billing_province: formData.billing_province,
+        billing_zip_code: formData.billing_zip_code,
+        billing_country: formData.billing_country,
 
-          notes: formData.notes,
-        },
-      ])
-      .select()
-      .single();
+        shipping_street: formData.shipping_street,
+        shipping_city: formData.shipping_city,
+        shipping_province: formData.shipping_province,
+        shipping_zip_code: formData.shipping_zip_code,
+        shipping_country: formData.shipping_country,
+        shipping_same_as_billing: formData.same_as_billing,
 
-    if (error) {
-      console.error("Error saving customer:", error);
-      setLoading(false);
-      return;
-    }
+        notes: formData.notes,
+      },
+    ])
+    .select()
+    .single();
 
-    // Upload attachments
-    for (const att of attachments) {
-      await supabase.from("customer_attachments").insert([
-        {
-          customer_id: data.id,
-          filename: att.filename,
-          file_url: att.file_url,
-          file_size: att.file_size,
-          file_type: att.file_type,
-        },
-      ]);
-    }
-
-    // Reset to first page and refresh
-    setCurrentPage(1);
-    await fetchCustomers();
-
-    setOpen(false);
-    setFormData({
-      name: "", email: "", phone: "", company_name: "", mobile: "", fax: "", website: "",
-      currency: "PHP", primary_payment_method: "", payment_terms: "", sales_form_delivery_options: "",
-      sales_tax_registration: "", opening_balance: "0", opening_balance_date: new Date().toISOString().split('T')[0],
-      billing_address: "", billing_street: "", billing_city: "", billing_province: "", billing_zip_code: "", billing_country: "Philippines",
-      shipping_address: "", shipping_street: "", shipping_city: "", shipping_province: "", shipping_zip_code: "", shipping_country: "Philippines",
-      same_as_billing: true, notes: ""
-    });
-
-    setAttachments([]);
+  if (error) {
+    console.error("Error saving customer:", error);
     setLoading(false);
-  };
+    return;
+  }
+
+  // Upload attachments
+  for (const att of attachments) {
+    await supabase.from("customer_attachments").insert([
+      {
+        customer_id: data.id,
+        filename: att.filename,
+        file_url: att.file_url,
+        file_size: att.file_size,
+        file_type: att.file_type,
+      },
+    ]);
+  }
+
+  // Reset to first page and refresh
+  setCurrentPage(1);
+  await fetchCustomers();
+
+  setOpen(false);
+  setFormData({
+    name: "", email: "", phone: "", company_name: "", mobile: "", fax: "", website: "",
+    currency: "PHP", primary_payment_method: "", payment_terms: "", sales_form_delivery_options: "",
+    sales_tax_registration: "", opening_balance: "0", opening_balance_date: new Date().toISOString().split('T')[0],
+    billing_address: "", billing_street: "", billing_city: "", billing_province: "", billing_zip_code: "", billing_country: "Philippines",
+    shipping_address: "", shipping_street: "", shipping_city: "", shipping_province: "", shipping_zip_code: "", shipping_country: "Philippines",
+    same_as_billing: true, notes: ""
+  });
+
+  setAttachments([]);
+  setLoading(false);
+};
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= totalPages) {

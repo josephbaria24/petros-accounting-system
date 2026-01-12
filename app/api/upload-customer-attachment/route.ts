@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
           console.log("Failed to upload to customer_attachments folder, trying root directory");
           // Fallback: upload to root with customer_attachments_ prefix
           uploadPath = `customer_attachments_${newFileName}`;
-          publicUrl = `https://petrosphere.com.ph/uploads/trainees/customer_attachments_${newFileName}`;
+          publicUrl = `https://petrosphere.com.ph/uploads/trainees/customer_attachments/customer_attachments_${newFileName}`;
           await client.uploadFrom(attachmentFile.filepath, uploadPath);
           console.log(`Uploaded to root as ${uploadPath}`);
         }

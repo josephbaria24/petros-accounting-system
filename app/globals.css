@@ -77,6 +77,8 @@
   --sidebar-accent-foreground: #333333;
   --sidebar-border: #eaeaf5;
   --sidebar-ring: #ac9ccf;
+  --border: #c7c7d8;
+  --input: #c7c7d8;
 }
 
 .dark {
@@ -111,6 +113,8 @@
   --sidebar-accent-foreground: #fcfcfc;
   --sidebar-border: rgba(255, 255, 255, 0.1);
   --sidebar-ring: #8887a1;
+  --border: rgba(255, 255, 255, 0.18);
+  --input: rgba(255, 255, 255, 0.22);
 }
 
 

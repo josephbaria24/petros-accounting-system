@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Plus, X, ChevronDown, ChevronUp, Settings } from "lucide-react";
+import { Plus, X, ChevronDown, ChevronUp, Settings, ArrowLeft, FileText, RefreshCw, Trash2, Download, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 import {
@@ -43,6 +43,15 @@ type InvoiceItem = {
   tax: number;
   class: string;
 };
+type CustomerAttachment = {
+  id: string
+  customer_id: string
+  filename: string
+  file_url: string
+  file_size: number | null
+  file_type: string | null
+  uploaded_at: string
+}
 
 export default function CreateInvoicePage() {
   const supabase = createClient();
@@ -68,6 +77,13 @@ export default function CreateInvoicePage() {
   const [tags, setTags] = useState<string[]>([]);
   const [invoiceAmounts, setInvoiceAmounts] = useState("Out of Scope of Tax");
   const [showManageTags, setShowManageTags] = useState(false);
+
+
+  // Attachment states
+  const [attachments, setAttachments] = useState<CustomerAttachment[]>([])
+  const [uploadingAttachment, setUploadingAttachment] = useState(false)
+  const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null)
+  const [replacingAttachmentId, setReplacingAttachmentId] = useState<string | null>(null)
 
   const [items, setItems] = useState<InvoiceItem[]>([
     { serviceDate: "", productService: "", description: "", quantity: 1, rate: 0, tax: 0, class: "" },
@@ -129,7 +145,7 @@ export default function CreateInvoicePage() {
     setCustomers(data || []);
   };
 
-  useEffect(() => {
+useEffect(() => {
     if (customerId) {
       const customer = customers.find((c) => c.id === customerId);
       if (customer) {
@@ -150,9 +166,30 @@ export default function CreateInvoicePage() {
         if (showShipTo) {
           setShippingAddress(fullAddress);
         }
+
+        // Load customer attachments
+        loadCustomerAttachments(customerId);
       }
+    } else {
+      // Clear attachments if no customer selected
+      setAttachments([]);
     }
   }, [customerId, customers, showShipTo]);
+
+  const loadCustomerAttachments = async (custId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("customer_attachments")
+        .select("*")
+        .eq("customer_id", custId)
+        .order("uploaded_at", { ascending: false });
+
+      if (error) throw error;
+      setAttachments(data || []);
+    } catch (error) {
+      console.error("Error loading attachments:", error);
+    }
+  };
 
   const addItem = () => {
     setItems([...items, { serviceDate: "", productService: "", description: "", quantity: 1, rate: 0, tax: 0, class: "" }]);
@@ -170,6 +207,215 @@ export default function CreateInvoicePage() {
 
   const clearAllLines = () => {
     setItems([{ serviceDate: "", productService: "", description: "", quantity: 1, rate: 0, tax: 0, class: "" }]);
+  };
+
+  const handleAddAttachment = async () => {
+    if (!customerId) {
+      toast({
+        title: "No customer selected",
+        description: "Please select a customer before uploading attachments.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*,application/pdf";
+    input.multiple = false;
+    
+    input.onchange = async (e: any) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      // Validate file type
+      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+      if (!validTypes.includes(file.type)) {
+        toast({
+          title: "Invalid file type",
+          description: "Only image files (JPEG, PNG, GIF, WebP) and PDF files are allowed.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Validate file size (max 10MB)
+      const maxSize = 10 * 1024 * 1024;
+      if (file.size > maxSize) {
+        toast({
+          title: "File too large",
+          description: "File size must be less than 10MB.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setUploadingAttachment(true);
+      try {
+        const formData = new FormData();
+        formData.append("attachment", file);
+
+        // Upload file
+        const uploadResponse = await fetch("/api/upload-customer-attachment", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error("Failed to upload file");
+        }
+
+        const uploadResult = await uploadResponse.json();
+
+        // Save to database
+        const { data, error } = await supabase
+          .from("customer_attachments")
+          .insert({
+            customer_id: customerId,
+            filename: uploadResult.filename,
+            file_url: uploadResult.url,
+            file_size: file.size,
+            file_type: file.type
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        // Update local state
+        setAttachments([data, ...attachments]);
+        toast({
+          title: "Attachment uploaded",
+          description: "File has been uploaded successfully.",
+        });
+      } catch (error) {
+        console.error("Error adding attachment:", error);
+        toast({
+          title: "Upload failed",
+          description: "Failed to upload attachment. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setUploadingAttachment(false);
+      }
+    };
+
+    input.click();
+  };
+
+  const handleDeleteAttachment = async (attachmentId: string) => {
+    if (!confirm("Are you sure you want to delete this attachment?")) {
+      return;
+    }
+
+    setDeletingAttachmentId(attachmentId);
+    try {
+      const { error } = await supabase
+        .from("customer_attachments")
+        .delete()
+        .eq("id", attachmentId);
+
+      if (error) throw error;
+
+      setAttachments(attachments.filter(a => a.id !== attachmentId));
+      toast({
+        title: "Attachment deleted",
+        description: "File has been deleted successfully.",
+      });
+    } catch (error) {
+      console.error("Error deleting attachment:", error);
+      toast({
+        title: "Delete failed",
+        description: "Failed to delete attachment. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingAttachmentId(null);
+    }
+  };
+
+  const handleReplaceAttachment = async (attachmentId: string) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*,application/pdf";
+    
+    input.onchange = async (e: any) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      // Validate file type
+      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+      if (!validTypes.includes(file.type)) {
+        toast({
+          title: "Invalid file type",
+          description: "Only image files (JPEG, PNG, GIF, WebP) and PDF files are allowed.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setReplacingAttachmentId(attachmentId);
+      try {
+        const formData = new FormData();
+        formData.append("attachment", file);
+
+        // Upload new file
+        const uploadResponse = await fetch("/api/upload-customer-attachment", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error("Failed to upload file");
+        }
+
+        const uploadResult = await uploadResponse.json();
+
+        // Update database
+        const { error } = await supabase
+          .from("customer_attachments")
+          .update({
+            filename: uploadResult.filename,
+            file_url: uploadResult.url,
+            file_size: file.size,
+            file_type: file.type,
+            uploaded_at: new Date().toISOString()
+          })
+          .eq("id", attachmentId);
+
+        if (error) throw error;
+
+        // Update local state
+        setAttachments(attachments.map(a => 
+          a.id === attachmentId 
+            ? {
+                ...a,
+                filename: uploadResult.filename,
+                file_url: uploadResult.url,
+                file_size: file.size,
+                file_type: file.type,
+                uploaded_at: new Date().toISOString()
+              }
+            : a
+        ));
+
+        toast({
+          title: "Attachment replaced",
+          description: "File has been replaced successfully.",
+        });
+      } catch (error) {
+        console.error("Error replacing attachment:", error);
+        toast({
+          title: "Replace failed",
+          description: "Failed to replace attachment. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setReplacingAttachmentId(null);
+      }
+    };
+
+    input.click();
   };
 
   const subtotal = items.reduce((s, i) => s + i.quantity * i.rate, 0);
@@ -421,8 +667,19 @@ const reviewAndSend = async () => {
       <div className={`flex-1 overflow-y-auto ${showManageTags ? 'overflow-hidden' : ''}`}>
         <div className="p-6 max-w-6xl mx-auto space-y-6">
           {/* Header */}
+         {/* Header */}
           <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold text-primary">Invoice</h1>
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => window.history.back()}
+                className="h-9 w-9"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <h1 className="text-3xl font-bold text-primary">Invoice</h1>
+            </div>
             <div className="text-sm text-muted-foreground">
               Balance due (hidden): <span className="font-semibold">₱{total.toFixed(2)}</span>
             </div>
@@ -685,6 +942,114 @@ const reviewAndSend = async () => {
             </div>
           </div>
 
+          {/* Customer Attachments */}
+            {customerId && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold">Customer Attachments ({attachments.length})</h3>
+                  <Button 
+                    onClick={handleAddAttachment} 
+                    size="sm" 
+                    variant="outline"
+                    disabled={uploadingAttachment}
+                  >
+                    {uploadingAttachment ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Add Attachment
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {attachments.length > 0 ? (
+                  <div className="space-y-3 border rounded-lg p-4">
+                    {attachments.map((attachment) => (
+                      <div
+                        key={attachment.id}
+                        className="flex items-center justify-between p-3 border rounded-lg hover:bg-secondary"
+                      >
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <FileText className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium truncate">{attachment.filename}</p>
+                            <p className="text-sm text-muted-foreground">
+                              Uploaded {new Date(attachment.uploaded_at).toLocaleDateString()}
+                              {attachment.file_size && 
+                                ` • ${(attachment.file_size / 1024).toFixed(2)} KB`
+                              }
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 flex-shrink-0">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => window.open(attachment.file_url, "_blank")}
+                            title="View file"
+                          >
+                            View
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const link = document.createElement('a');
+                              link.href = attachment.file_url;
+                              link.download = attachment.filename;
+                              link.click();
+                            }}
+                            title="Download file"
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleReplaceAttachment(attachment.id)}
+                            disabled={replacingAttachmentId === attachment.id}
+                            title="Replace file"
+                          >
+                            {replacingAttachmentId === attachment.id ? (
+                              <RefreshCw className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <RefreshCw className="h-4 w-4" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteAttachment(attachment.id)}
+                            disabled={deletingAttachmentId === attachment.id}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            title="Delete file"
+                          >
+                            {deletingAttachmentId === attachment.id ? (
+                              <RefreshCw className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 border rounded-lg bg-muted/20">
+                    <FileText className="h-12 w-12 mx-auto mb-2 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">No attachments yet</p>
+                    <p className="text-xs text-muted-foreground">Click "Add Attachment" to upload files</p>
+                  </div>
+                )}
+              </div>
+            )}
+            
+
           {/* Footer Buttons */}
           <div className="flex justify-end gap-3 border-t pt-4 pb-6">
             <Button variant="outline">Print or Download</Button>
@@ -786,60 +1151,6 @@ const reviewAndSend = async () => {
                   </div>
                 </div>
               )}
-            </div>
-
-            {/* Design Section */}
-            <div className="border rounded-lg">
-              <button
-                onClick={() => setDesignOpen(!designOpen)}
-                className="flex items-center justify-between w-full p-4 text-left font-medium hover:bg-muted/50"
-              >
-                <span>Design</span>
-                {designOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </button>
-
-              {designOpen && (
-                <div className="p-4 space-y-4 border-t">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Modernised template</span>
-                    <button className="text-sm text-blue-600 hover:underline">Make default</button>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-2 p-2 hover:bg-muted/50 rounded cursor-pointer">
-                      <input type="radio" name="template" className="w-4 h-4" />
-                      <span className="text-sm">Modern</span>
-                    </label>
-                  </div>
-
-                  <div className="pt-2 border-t">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">Other templates</span>
-                      <button className="text-sm text-blue-600 hover:underline">Add/Edit</button>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-2 p-2 hover:bg-muted/50 rounded cursor-pointer">
-                        <input type="radio" name="template" className="w-4 h-4" />
-                        <span className="text-sm">Standard</span>
-                      </label>
-                      <label className="flex items-center gap-2 p-2 hover:bg-muted/50 rounded cursor-pointer">
-                        <input type="radio" name="template" className="w-4 h-4" />
-                        <span className="text-sm">Friendly Theme</span>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Scheduling Section */}
-            <div className="border rounded-lg">
-              <button
-                onClick={() => setSchedulingOpen(!schedulingOpen)}
-                className="flex items-center justify-between w-full p-4 text-left font-medium hover:bg-muted/50"
-              >
-                <span>Scheduling</span>
-                {schedulingOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </button>
             </div>
           </div>
         </div>

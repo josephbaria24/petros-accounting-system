@@ -49,7 +49,7 @@ type Expense = {
   payment_method: string | null;
   notes: string | null;
   created_at: string | null;
-  vendor?: {
+  supplier?: {
     name: string;
   };
 };
@@ -63,12 +63,12 @@ type Bill = {
   status: string;
   total_amount: number | null;
   created_at: string | null;
-  vendor?: {
+  supplier?: {
     name: string;
   };
 };
 
-type Vendor = {
+type Supplier = {
   id: string;
   name: string;
 };
@@ -76,12 +76,12 @@ type Vendor = {
 export default function ExpensesDashboard() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [bills, setBills] = useState<Bill[]>([]);
-  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState("all");
   const [dateFilter, setDateFilter] = useState("last-12-months");
   const [showBillDialog, setShowBillDialog] = useState(false);
-  const [selectedVendor, setSelectedVendor] = useState("");
+  const [selectedSupplier, setSelectedSupplier] = useState("");
 
   const supabase = createClient();
 
@@ -92,39 +92,39 @@ export default function ExpensesDashboard() {
   async function fetchData() {
     setLoading(true);
     try {
-      // Fetch expenses with vendor data
+      // Fetch expenses with supplier data
       const { data: expensesData, error: expensesError } = await supabase
         .from("expenses")
         .select(`
           *,
-          vendor:vendors(name)
+          supplier:suppliers(name)
         `)
         .order("created_at", { ascending: false });
 
       if (expensesError) throw expensesError;
 
-      // Fetch bills with vendor data
+      // Fetch bills with supplier data
       const { data: billsData, error: billsError } = await supabase
         .from("bills")
         .select(`
           *,
-          vendor:vendors(name)
+          supplier:suppliers(name)
         `)
         .order("bill_date", { ascending: false });
 
       if (billsError) throw billsError;
 
-      // Fetch vendors
-      const { data: vendorsData, error: vendorsError } = await supabase
-        .from("vendors")
+      // Fetch suppliers
+      const { data: suppliersData, error: suppliersError } = await supabase
+        .from("suppliers")
         .select("*")
         .order("name");
 
-      if (vendorsError) throw vendorsError;
+      if (suppliersError) throw suppliersError;
 
       setExpenses(expensesData || []);
       setBills(billsData || []);
-      setVendors(vendorsData || []);
+      setSuppliers(suppliersData || []);
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
@@ -142,7 +142,7 @@ export default function ExpensesDashboard() {
           ...e,
           type: "Expense",
           date: e.created_at,
-          payee: e.vendor?.name || "Unknown",
+          payee: e.supplier?.name || "Unknown",
           category: e.category || "--Split--",
           totalBeforeSalesTax: e.amount,
           salesTax: 0,
@@ -159,7 +159,7 @@ export default function ExpensesDashboard() {
           ...b,
           type: "Bill",
           date: b.bill_date,
-          payee: b.vendor?.name || "Unknown",
+          payee: b.supplier?.name || "Unknown",
           category: "Bills",
           totalBeforeSalesTax: b.total_amount || 0,
           salesTax: 0,
@@ -179,8 +179,6 @@ export default function ExpensesDashboard() {
   return (
     <div className="flex flex-col">
       <div className="mb-6">
-        <h2 className="text-2xl font-semibold mb-6">Expenses</h2>
-
         {/* Action Bar */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
@@ -274,70 +272,78 @@ export default function ExpensesDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {transactions.map((transaction) => (
-                  <tr key={transaction.id} className="border-b hover:bg-secondary">
-                    <td className="p-3">
-                      <Checkbox />
-                    </td>
-                    <td className="p-3">
-                      {new Date(transaction.date).toLocaleDateString("en-US", {
-                        month: "2-digit",
-                        day: "2-digit",
-                        year: "numeric",
-                      })}
-                    </td>
-                    <td className="p-3">{transaction.type}</td>
-                    <td className="p-3">{transaction.no}</td>
-                    <td className="p-3">{transaction.payee}</td>
-                    <td className="p-3">
-                      <Select defaultValue={transaction.category}>
-                        <SelectTrigger className="w-[180px] h-8">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={transaction.category}>
-                            {transaction.category}
-                          </SelectItem>
-                          <SelectItem value="Utilities">Utilities</SelectItem>
-                          <SelectItem value="Employee Sal">
-                            Employee Sal
-                          </SelectItem>
-                          <SelectItem value="delivery Fee">
-                            delivery Fee
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </td>
-                    <td className="p-3 text-right">
-                      PHP{transaction.totalBeforeSalesTax.toFixed(2)}
-                    </td>
-                    <td className="p-3 text-right">
-                      PHP{transaction.salesTax.toFixed(2)}
-                    </td>
-                    <td className="p-3 text-right">
-                      PHP{transaction.total.toFixed(2)}
-                    </td>
-                    <td className="p-3">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-green-600"
-                          >
-                            View/Edit
-                            <ChevronDown className="ml-1 h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          <DropdownMenuItem>View</DropdownMenuItem>
-                          <DropdownMenuItem>Edit</DropdownMenuItem>
-                          <DropdownMenuItem>Delete</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                {transactions.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="text-center py-8 text-muted-foreground">
+                      No transactions found. Click "New transaction" to add one.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  transactions.map((transaction) => (
+                    <tr key={transaction.id} className="border-b hover:bg-secondary">
+                      <td className="p-3">
+                        <Checkbox />
+                      </td>
+                      <td className="p-3">
+                        {new Date(transaction.date).toLocaleDateString("en-US", {
+                          month: "2-digit",
+                          day: "2-digit",
+                          year: "numeric",
+                        })}
+                      </td>
+                      <td className="p-3">{transaction.type}</td>
+                      <td className="p-3">{transaction.no}</td>
+                      <td className="p-3">{transaction.payee}</td>
+                      <td className="p-3">
+                        <Select defaultValue={transaction.category}>
+                          <SelectTrigger className="w-[180px] h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={transaction.category}>
+                              {transaction.category}
+                            </SelectItem>
+                            <SelectItem value="Utilities">Utilities</SelectItem>
+                            <SelectItem value="Employee Sal">
+                              Employee Sal
+                            </SelectItem>
+                            <SelectItem value="delivery Fee">
+                              delivery Fee
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      <td className="p-3 text-right">
+                        PHP{transaction.totalBeforeSalesTax.toFixed(2)}
+                      </td>
+                      <td className="p-3 text-right">
+                        PHP{transaction.salesTax.toFixed(2)}
+                      </td>
+                      <td className="p-3 text-right">
+                        PHP{transaction.total.toFixed(2)}
+                      </td>
+                      <td className="p-3">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-green-600"
+                            >
+                              View/Edit
+                              <ChevronDown className="ml-1 h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            <DropdownMenuItem>View</DropdownMenuItem>
+                            <DropdownMenuItem>Edit</DropdownMenuItem>
+                            <DropdownMenuItem>Delete</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -378,14 +384,14 @@ export default function ExpensesDashboard() {
                 {/* Supplier */}
                 <div>
                   <Label>Supplier</Label>
-                  <Select value={selectedVendor} onValueChange={setSelectedVendor}>
+                  <Select value={selectedSupplier} onValueChange={setSelectedSupplier}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Choose a supplier" />
                     </SelectTrigger>
                     <SelectContent>
-                      {vendors.map((vendor) => (
-                        <SelectItem key={vendor.id} value={vendor.id}>
-                          {vendor.name}
+                      {suppliers.map((supplier) => (
+                        <SelectItem key={supplier.id} value={supplier.id}>
+                          {supplier.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -509,14 +515,14 @@ export default function ExpensesDashboard() {
                                   size="icon"
                                   className="h-6 w-6"
                                 >
-                                  📋
+                                  <Clipboard className="h-4 w-4" />
                                 </Button>
                                 <Button
                                   variant="ghost"
                                   size="icon"
                                   className="h-6 w-6"
                                 >
-                                  🗑️
+                                  <Trash2Icon className="h-4 w-4" />
                                 </Button>
                               </div>
                             </td>
@@ -548,14 +554,14 @@ export default function ExpensesDashboard() {
                                   size="icon"
                                   className="h-6 w-6"
                                 >
-                                  <Clipboard/>
+                                  <Clipboard className="h-4 w-4" />
                                 </Button>
                                 <Button
                                   variant="ghost"
                                   size="icon"
                                   className="h-6 w-6"
                                 >
-                                  <Trash2Icon/>
+                                  <Trash2Icon className="h-4 w-4" />
                                 </Button>
                               </div>
                             </td>

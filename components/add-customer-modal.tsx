@@ -153,53 +153,55 @@ export default function AddCustomerModal({
     setAttachments((prev) => prev.filter((_, index) => index !== i));
   };
 
-  // ───────────────────────────────────────────────────────────
-  // Submit handler (Supabase insert)
-  // ───────────────────────────────────────────────────────────
 
-  const handleSubmit = async () => {
-    if (!formData.name.trim()) return;
 
-    setLoading(true);
+const handleSubmit = async () => {
+  if (!formData.name.trim()) return;
 
-    const { data, error } = await supabase
-      .from("customers")
-      .insert([
-        {
-          ...formData,
-          opening_balance: parseFloat(formData.opening_balance) || 0,
-        },
-      ])
-      .select()
-      .single();
+  setLoading(true);
 
-    if (error) {
-      console.error(error);
-      setLoading(false);
-      return;
-    }
+  // Destructure to separate same_as_billing from the rest
+  const { same_as_billing, ...restFormData } = formData;
 
-    // Insert attachments
-    for (const att of attachments) {
-      await supabase.from("customer_attachments").insert([
-        {
-          customer_id: data.id,
-          filename: att.filename,
-          file_url: att.file_url,
-          file_size: att.file_size,
-          file_type: att.file_type,
-        },
-      ]);
-    }
+  const { data, error } = await supabase
+    .from("customers")
+    .insert([
+      {
+        ...restFormData,
+        opening_balance: parseFloat(formData.opening_balance) || 0,
+        shipping_same_as_billing: same_as_billing, // Map to correct column name
+      },
+    ])
+    .select()
+    .single();
 
+  if (error) {
+    console.error(error);
     setLoading(false);
+    return;
+  }
 
-    // Call callback for Invoice page or Customer Table
-    onCustomerCreated?.(data);
+  // Insert attachments
+  for (const att of attachments) {
+    await supabase.from("customer_attachments").insert([
+      {
+        customer_id: data.id,
+        filename: att.filename,
+        file_url: att.file_url,
+        file_size: att.file_size,
+        file_type: att.file_type,
+      },
+    ]);
+  }
 
-    // Close modal
-    onOpenChange(false);
-  };
+  setLoading(false);
+
+  // Call callback for Invoice page or Customer Table
+  onCustomerCreated?.(data);
+
+  // Close modal
+  onOpenChange(false);
+};
 
   // ───────────────────────────────────────────────────────────
   // RENDER
