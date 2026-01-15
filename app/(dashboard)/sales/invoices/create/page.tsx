@@ -4,6 +4,7 @@
 import { useState, useEffect } from "react";
 import CustomerSelector from "@/components/invoice/customer-selector";
 import ManageTagsModal from "@/components/invoice/manage-tags-modal";
+import ManageCodesModal from "@/components/invoice/manage-codes-modal";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -74,9 +75,10 @@ export default function CreateInvoicePage() {
   const [dueDate, setDueDate] = useState(issueDate);
   const [terms, setTerms] = useState("Due on receipt");
   const [location, setLocation] = useState("Head Office - Puerto Princesa City");
-  const [tags, setTags] = useState<string[]>([]);
   const [invoiceAmounts, setInvoiceAmounts] = useState("Out of Scope of Tax");
-  const [showManageTags, setShowManageTags] = useState(false);
+  const [selectedCode, setSelectedCode] = useState("");
+  const [codes, setCodes] = useState<{id: string, code: string, name: string}[]>([]);
+  const [showCodeSelector, setShowCodeSelector] = useState(false);
 
 
   // Attachment states
@@ -113,15 +115,27 @@ export default function CreateInvoicePage() {
   const [showDiscount, setShowDiscount] = useState(true);
   const [showShippingFee, setShowShippingFee] = useState(false);
 
-  const handleTagSelect = (tagId: string) => {
-    if (!tags.includes(tagId)) {
-      setTags([...tags, tagId]);
+  useEffect(() => {
+    fetchCodes();
+  }, []);
+
+  const fetchCodes = async () => {
+    const { data, error } = await supabase
+      .from("codes")
+      .select("id, code, name")
+      .order("code");
+
+    if (error) {
+      console.error("Error fetching codes:", error);
+      return;
     }
-    setShowManageTags(false);
+
+    setCodes(data || []);
   };
 
-  const removeTag = (tagId: string) => {
-    setTags(tags.filter((id) => id !== tagId));
+  const handleCodeSelect = (codeValue: string) => {
+    setSelectedCode(codeValue);
+    setShowCodeSelector(false);
   };
 
   useEffect(() => {
@@ -450,7 +464,7 @@ useEffect(() => {
           memo: memo,
           customer_email: customerEmail,
           cc_bcc: ccBcc,
-          tags: tags.join(","),
+          code: selectedCode || null,
           location: location,
           terms: terms,
           invoice_amounts: invoiceAmounts,
@@ -477,15 +491,6 @@ useEffect(() => {
       if (itemsToInsert.length > 0) {
         const { error: itemsError } = await supabase.from("invoice_items").insert(itemsToInsert);
         if (itemsError) throw itemsError;
-      }
-
-      if (tags.length > 0 && invoice) {
-        const tagInserts = tags.map((tagId) => ({
-          invoice_id: invoice.id,
-          tag_id: tagId,
-        }));
-        const { error: tagsError } = await supabase.from("invoice_tags").insert(tagInserts);
-        if (tagsError) console.error("Error saving tags:", tagsError);
       }
 
         toast({
@@ -539,7 +544,7 @@ const reviewAndSend = async () => {
         memo: memo,
         customer_email: customerEmail,
         cc_bcc: ccBcc,
-        tags: tags.join(","),
+        code: selectedCode || null,
         location: location,
         terms: terms,
         invoice_amounts: invoiceAmounts,
@@ -566,14 +571,6 @@ const reviewAndSend = async () => {
     if (itemsToInsert.length > 0) {
       const { error: itemsError } = await supabase.from("invoice_items").insert(itemsToInsert);
       if (itemsError) throw itemsError;
-    }
-
-    if (tags.length > 0) {
-      const tagInserts = tags.map((tagId) => ({
-        invoice_id: invoice.id,
-        tag_id: tagId,
-      }));
-      await supabase.from("invoice_tags").insert(tagInserts);
     }
 
     // Generate PDF on client-side
@@ -664,7 +661,7 @@ const reviewAndSend = async () => {
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Main Content Area */}
-      <div className={`flex-1 overflow-y-auto ${showManageTags ? 'overflow-hidden' : ''}`}>
+      <div className={`flex-1 overflow-y-auto ${showCodeSelector ? 'overflow-hidden' : ''}`}>
         <div className="p-6 max-w-6xl mx-auto space-y-6">
           {/* Header */}
          {/* Header */}
@@ -744,29 +741,41 @@ const reviewAndSend = async () => {
             <div className="grid grid-cols-2 gap-6">
               <div className="space-y-4">
                 <div>
-                  <Label className="text-sm text-muted-foreground">Tags (hidden):</Label>
-                  <div className="flex flex-wrap gap-2 mt-1 mb-2">
-                    {tags.map((tagId) => (
-                      <div
-                        key={tagId}
-                        className="inline-flex items-center gap-1 bg-primary/10 text-primary px-2 py-1 rounded text-sm"
+                  <Label className="text-sm text-muted-foreground">Project/Training Code:</Label>
+                  {selectedCode && (
+                    <div className="flex items-center gap-2 mt-1 mb-2 bg-blue-100 text-blue-800 px-3 py-2 rounded">
+                      <span className="font-medium">{selectedCode}</span>
+                      <span className="text-sm">
+                        - {codes.find(c => c.code === selectedCode)?.name}
+                      </span>
+                      <button
+                        onClick={() => setSelectedCode("")}
+                        className="ml-auto hover:bg-blue-200 rounded-full p-0.5"
                       >
-                        <span>Tag {tagId.slice(0, 8)}</span>
-                        <button
-                          onClick={() => removeTag(tagId)}
-                          className="hover:bg-primary/20 rounded-full p-0.5"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                  <Input placeholder="Start typing to add a tag" readOnly onClick={() => setShowManageTags(true)} />
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
+                  <Select value={selectedCode} onValueChange={handleCodeSelect}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select project/training code" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {codes.map((code) => (
+                        <SelectItem key={code.id} value={code.code}>
+                          <div className="flex flex-col items-start">
+                            <span className="font-medium">{code.code}</span>
+                            <span className="text-xs text-muted-foreground">{code.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <button 
-                    onClick={() => setShowManageTags(true)} 
+                    onClick={() => setShowCodeSelector(true)} 
                     className="text-sm text-blue-600 hover:underline mt-1"
                   >
-                    Manage tags
+                    Manage codes
                   </button>
                 </div>
 
@@ -1168,10 +1177,10 @@ const reviewAndSend = async () => {
       )}
 
       {/* Manage Tags Modal */}
-      <ManageTagsModal
-        isOpen={showManageTags}
-        onClose={() => setShowManageTags(false)}
-        onTagSelect={handleTagSelect}
+      {/* Manage Codes Modal */}
+      <ManageCodesModal
+        isOpen={showCodeSelector}
+        onClose={() => setShowCodeSelector(false)}
       />
     </div>
   );

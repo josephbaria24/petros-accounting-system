@@ -48,6 +48,7 @@ export default function InvoiceDetailPage() {
   const router = useRouter()
   const supabase = createClient()
   const invoiceId = params.id as string
+  const NO_CODE_VALUE = "__none__";
 
   const [invoice, setInvoice] = useState<any>(null)
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -61,6 +62,9 @@ export default function InvoiceDetailPage() {
 
   const [uploadingAttachment, setUploadingAttachment] = useState(false)
 
+
+  
+  const [codes, setCodes] = useState<{id: string, code: string, name: string}[]>([])
   const [editForm, setEditForm] = useState({
     customer_id: "",
     invoice_no: "",
@@ -70,13 +74,23 @@ export default function InvoiceDetailPage() {
     notes: "",
     location: "",
     memo: "",
-    terms: ""
+    terms: "",
+    code: ""
   })
 
   useEffect(() => {
     async function loadData() {
       setLoading(true)
       try {
+
+        // load code
+        const { data: codesData } = await supabase
+        .from("codes")
+        .select("id, code, name")
+        .order("code")
+      
+      setCodes(codesData || [])
+
         // Load customers
         const { data: customersData } = await supabase
           .from("customers")
@@ -103,7 +117,8 @@ export default function InvoiceDetailPage() {
             notes: invoiceData.notes || "",
             location: invoiceData.location || "",
             memo: invoiceData.memo || "",
-            terms: invoiceData.terms || "Due on receipt"
+            terms: invoiceData.terms || "Due on receipt",
+            code: invoiceData.code ? invoiceData.code : NO_CODE_VALUE
           })
           // Load customer attachments
           if (invoiceData.customer_id) {
@@ -384,9 +399,10 @@ export default function InvoiceDetailPage() {
           location: editForm.location,
           memo: editForm.memo,
           terms: editForm.terms,
+          code: editForm.code === NO_CODE_VALUE ? null : editForm.code || null,
           subtotal: totals.subtotal,
           tax_total: totals.taxTotal,
-          balance_due: totals.total // You may want to adjust this based on payments
+          balance_due: totals.total
         })
         .eq("id", invoiceId)
 
@@ -573,6 +589,34 @@ export default function InvoiceDetailPage() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* ADD THIS CODE SELECTOR */}
+                    <div>
+                      <label className="text-sm font-medium">Project/Training Code</label>
+                    <Select
+                value={editForm.code || NO_CODE_VALUE}
+                onValueChange={(value) => setEditForm({ ...editForm, code: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select code (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_CODE_VALUE}>No code</SelectItem>
+                  {codes.map((code) => (
+                    <SelectItem key={code.id} value={code.code}>
+                      <div className="flex flex-col items-start">
+                        <span className="font-medium">{code.code}</span>
+                        <span className="text-xs text-muted-foreground">{code.name}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+                    </div>
+
+
+                
                 {selectedCustomer && (
                   <>
                     <div>
@@ -594,6 +638,22 @@ export default function InvoiceDetailPage() {
                   <label className="text-sm font-medium">Customer</label>
                   <p className="text-lg">{invoice.customers?.name || "N/A"}</p>
                 </div>
+
+                {/* ADD THIS CODE DISPLAY */}
+                {invoice.code && (
+                  <div>
+                    <label className="text-sm font-medium">Project/Training Code</label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="inline-flex items-center px-3 py-1 rounded-md bg-blue-100 text-blue-800 font-medium">
+                        {invoice.code}
+                      </span>
+                      <span className="text-sm text-gray-600">
+                        {codes.find(c => c.code === invoice.code)?.name || ''}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <label className="text-sm font-medium">Email</label>
                   <p>{invoice.customers?.email || "N/A"}</p>

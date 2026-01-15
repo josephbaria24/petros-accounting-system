@@ -67,8 +67,70 @@ export default function InvoicesTable() {
   const [batchReminderDialogOpen, setBatchReminderDialogOpen] = useState(false)
   const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState<SelectedInvoiceForPayment | null>(null)
   const [selectedInvoiceForReminder, setSelectedInvoiceForReminder] = useState<SelectedInvoiceForReminder | null>(null)
-
+  const [deleting, setDeleting] = useState(false)
   const router = useRouter()
+
+
+ const handleBatchDelete = async () => {
+    if (selectedRows.size === 0) {
+      alert("Please select at least one invoice")
+      return
+    }
+
+    const ids = Array.from(selectedRows)
+    const ok = confirm(
+      `Delete ${ids.length} invoice${ids.length > 1 ? "s" : ""}?\n\nThis will also delete related invoice items, tags, reminders, and payments.`
+    )
+    if (!ok) return
+
+    setDeleting(true)
+    try {
+      // 1) invoice_reminders
+      const { error: remindersErr } = await supabase
+        .from("invoice_reminders")
+        .delete()
+        .in("invoice_id", ids)
+      if (remindersErr) throw remindersErr
+
+      // 2) invoice_tags
+      const { error: tagsErr } = await supabase
+        .from("invoice_tags")
+        .delete()
+        .in("invoice_id", ids)
+      if (tagsErr) throw tagsErr
+
+      // 3) payments
+      const { error: paymentsErr } = await supabase
+        .from("payments")
+        .delete()
+        .in("invoice_id", ids)
+      if (paymentsErr) throw paymentsErr
+
+      // 4) invoice_items
+      const { error: itemsErr } = await supabase
+        .from("invoice_items")
+        .delete()
+        .in("invoice_id", ids)
+      if (itemsErr) throw itemsErr
+
+      // 5) invoices
+      const { error: invErr } = await supabase
+        .from("invoices")
+        .delete()
+        .in("id", ids)
+      if (invErr) throw invErr
+
+      setSelectedRows(new Set())
+      await loadInvoices()
+      alert("Deleted successfully.")
+    } catch (e: any) {
+      console.error("Batch delete failed:", e)
+      alert(e?.message || "Failed to delete selected invoices.")
+    } finally {
+      setDeleting(false)
+    }
+  }
+
 
   const calculateStats = () => {
     const now = new Date()
@@ -334,7 +396,13 @@ export default function InvoicesTable() {
                 Send reminders ({selectedRows.size})
               </DropdownMenuItem>
               <DropdownMenuItem>Export selected</DropdownMenuItem>
-              <DropdownMenuItem>Delete selected</DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handleBatchDelete}
+                disabled={deleting || selectedRows.size === 0}
+              >
+                {deleting ? `Deleting (${selectedRows.size})...` : `Delete selected (${selectedRows.size})`}
+              </DropdownMenuItem>
+
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -409,14 +477,22 @@ export default function InvoicesTable() {
                 const issueDate = new Date(invoice.issue_date || "")
                 const balanceDue = invoice.balance_due || 0
                 
-                return (
-                  <tr key={invoice.id} className="border-b hover:bg-secondary">
-                    <td className="px-4 py-3">
-                      <Checkbox
-                        checked={selectedRows.has(invoice.id)}
-                        onCheckedChange={() => toggleSelectRow(invoice.id)}
-                      />
-                    </td>
+                    return (
+                     <tr
+                          key={invoice.id}
+                          className="border-b hover:bg-secondary cursor-pointer"
+                          onClick={() => router.push(`/invoices/${invoice.id}?returnTab=invoices`)}
+                        >
+                       <td
+                        className="px-4 py-3"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Checkbox
+                          checked={selectedRows.has(invoice.id)}
+                          onCheckedChange={() => toggleSelectRow(invoice.id)}
+                        />
+                      </td>
+
                     <td className="px-4 py-3 text-sm">
                       {issueDate.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: '2-digit' })}
                     </td>
@@ -425,7 +501,11 @@ export default function InvoicesTable() {
                     <td className="px-4 py-3 text-sm">
                       ₱{(invoice.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
-                    <td className="px-4 py-3">
+                    <td
+  className="px-4 py-3"
+  onClick={(e) => e.stopPropagation()}
+>
+
                       <div className="flex items-center gap-2">
                         {invoice.status === "paid" && balanceDue <= 0.01 ? (
                           <svg className="h-4 w-4 text-green-600 flex-shrink-0" fill="none" strokeWidth="2" stroke="currentColor" viewBox="0 0 24 24">
@@ -444,7 +524,8 @@ export default function InvoicesTable() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+
                       <div className="flex items-center gap-2 text-sm">
                         <Button 
                           variant="link" 

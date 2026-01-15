@@ -1,3 +1,4 @@
+//components\expenses-tabs\suppliers-table.tsx
 "use client"
 
 import { useState, useEffect } from "react"

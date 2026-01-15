@@ -15,6 +15,8 @@ export default function CustomerSelector({ value, onChange }: any) {
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
+
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const loadCustomers = async () => {
@@ -99,7 +101,39 @@ export default function CustomerSelector({ value, onChange }: any) {
     };
   }, [isOpen]);
 
-  const selectedCustomer = customers.find(c => c.id === value);
+
+  
+  // const selectedCustomer = customers.find(c => c.id === value);
+
+
+    useEffect(() => {
+    const syncSelected = async () => {
+      if (!value) {
+        setSelectedCustomer(null);
+        return;
+      }
+
+      // Try from currently loaded list first
+      const fromList = customers.find((c) => c.id === value);
+      if (fromList) {
+        setSelectedCustomer(fromList);
+        return;
+      }
+
+      // Otherwise fetch from DB (important because you only load 100 customers)
+      const { data, error } = await supabase
+        .from("customers")
+        .select("id, name, email, company_name, currency")
+        .eq("id", value)
+        .single();
+
+      if (!error && data) setSelectedCustomer(data);
+    };
+
+    syncSelected();
+  }, [value, customers]);
+
+
 
   return (
     <>
@@ -167,9 +201,11 @@ export default function CustomerSelector({ value, onChange }: any) {
                       className="w-full text-left px-2 py-2 hover:bg-accent hover:text-accent-foreground text-sm cursor-pointer transition-colors"
                       onClick={() => {
                         onChange(c.id);
+                        setSelectedCustomer(c);
                         setIsOpen(false);
                         setSearchQuery("");
                       }}
+
                     >
                       <div className="flex items-center justify-between">
                         <span className="truncate">{c.name}</span>
@@ -201,8 +237,10 @@ export default function CustomerSelector({ value, onChange }: any) {
         onCustomerCreated={(customer: any) => {
           setCustomers((prev) => [customer, ...prev].sort((a, b) => a.name.localeCompare(b.name)));
           onChange(customer.id);
+          setSelectedCustomer(customer);
           setShowAddModal(false);
         }}
+
       />
     </>
   );
