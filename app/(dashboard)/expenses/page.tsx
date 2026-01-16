@@ -1,3 +1,5 @@
+//app\(dashboard)\expenses\page.tsx
+
 "use client"
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
@@ -37,7 +39,7 @@ export default function ExpensesPage() {
         <TabsList className="mb-4">
           <TabsTrigger value="expenses">Expenses</TabsTrigger>
           <TabsTrigger value="bills">Bills</TabsTrigger>
-          <TabsTrigger value="purchase-orders">Purchase orders</TabsTrigger>
+          {/* <TabsTrigger value="purchase-orders">Purchase orders</TabsTrigger> */}
           <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
         </TabsList>
 
@@ -48,10 +50,10 @@ export default function ExpensesPage() {
         <TabsContent value="bills">
           <BillsTable />
         </TabsContent>
-
+{/* 
         <TabsContent value="purchase-orders">
           <PurchaseOrdersTable />
-        </TabsContent>
+        </TabsContent> */}
 
         <TabsContent value="suppliers">
           <SuppliersTable />

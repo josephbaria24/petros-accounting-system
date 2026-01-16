@@ -218,37 +218,37 @@ export default function CodeReportPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Code-Based Financial Report</h1>
-          <p className="text-gray-600">Track income and expenses for specific projects, trainings, or events</p>
+          <h1 className="text-3xl font-bold mb-2">Code-Based Financial Report</h1>
+          <p className="">Track income and expenses for specific projects, trainings, or events</p>
         </div>
 
         {/* Code Selector */}
-        <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+        <div className="bg-card rounded-lg shadow-sm border p-6 mb-6">
+          <label className="block text-sm font-medium mb-2">
             Select Code
           </label>
           <div className="relative">
             <button
               type="button"
               onClick={() => setShowCodeDropdown(!showCodeDropdown)}
-              className="w-full md:w-96 flex items-center justify-between px-4 py-3 bg-white border border-gray-300 rounded-lg hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full md:w-96 flex items-center justify-between px-4 py-3 bg-card border border-gray-300 rounded-lg hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={loading}
             >
-              <span className={selectedCode ? "text-gray-900" : "text-gray-500"}>
+              <span className={selectedCode ? "text-foreground" : "text-foreground"}>
                 {loading ? "Loading codes..." : selectedCode || "Choose a code..."}
               </span>
               <ChevronDown className="h-5 w-5 text-gray-400" />
             </button>
 
             {showCodeDropdown && (
-              <div className="absolute z-10 mt-2 w-full md:w-96 bg-white border border-gray-200 rounded-lg shadow-lg">
+              <div className="absolute z-10 mt-2 w-full md:w-96 bg-card border border-gray-200 rounded-lg shadow-lg">
                 <div className="p-3 border-b">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-foreground" />
                     <input
                       type="text"
                       placeholder="Search codes..."
@@ -270,10 +270,10 @@ export default function CodeReportPage() {
                           setShowCodeDropdown(false);
                           setSearchQuery("");
                         }}
-                        className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors"
+                        className="w-full text-left px-4 py-3 hover:bg-secondary transition-colors"
                       >
-                        <div className="font-medium text-gray-900">{code.code}</div>
-                        <div className="text-sm text-gray-600">{code.name}</div>
+                        <div className="font-medium text-foreground">{code.code}</div>
+                        <div className="text-sm text-foreground/50">{code.name}</div>
                       </button>
                     ))
                   ) : (
@@ -289,7 +289,7 @@ export default function CodeReportPage() {
 
         {/* Report Content */}
         {loadingReport ? (
-          <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
+          <div className="bg-card rounded-lg shadow-sm border p-12 text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
             <p className="text-gray-600">Loading report...</p>
           </div>
@@ -297,35 +297,35 @@ export default function CodeReportPage() {
           <>
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-              <div className="bg-white rounded-lg shadow-sm border p-6">
+              <div className="bg-card rounded-lg shadow-sm border p-6">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-600">Total Income</span>
+                  <span className="text-sm font-medium text-foreground">Total Income</span>
                   <TrendingUp className="h-5 w-5 text-green-600" />
                 </div>
-                <div className="text-2xl font-bold text-gray-900">
+                <div className="text-2xl font-bold text-foreground">
                   {formatCurrency(reportData.totalIncome)}
                 </div>
-                <div className="text-xs text-gray-500 mt-1">
+                <div className="text-xs text-foreground/50 mt-1">
                   {reportData.income.length} transaction{reportData.income.length !== 1 ? 's' : ''}
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg shadow-sm border p-6">
+              <div className="bg-card rounded-lg shadow-sm border p-6">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-600">Total Expenses</span>
+                  <span className="text-sm font-medium text-foreground">Total Expenses</span>
                   <TrendingDown className="h-5 w-5 text-red-600" />
                 </div>
-                <div className="text-2xl font-bold text-gray-900">
+                <div className="text-2xl font-bold text-foreground">
                   {formatCurrency(reportData.totalExpenses)}
                 </div>
-                <div className="text-xs text-gray-500 mt-1">
+                <div className="text-xs text-foreground/50 mt-1">
                   {reportData.expenses.length} transaction{reportData.expenses.length !== 1 ? 's' : ''}
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg shadow-sm border p-6">
+              <div className="bg-card rounded-lg shadow-sm border p-6">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-600">Available Balance</span>
+                  <span className="text-sm font-medium text-foreground">Available Balance</span>
                   <DollarSign className="h-5 w-5 text-blue-600" />
                 </div>
                 <div className={`text-2xl font-bold ${reportData.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -336,60 +336,60 @@ export default function CodeReportPage() {
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg shadow-sm border p-6">
+              <div className="bg-card rounded-lg shadow-sm border p-6">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-600">Profit Margin</span>
+                  <span className="text-sm font-medium text-foreground">Profit Margin</span>
                   <FileText className="h-5 w-5 text-purple-600" />
                 </div>
-                <div className="text-2xl font-bold text-gray-900">
+                <div className="text-2xl font-bold text-foreground">
                   {reportData.profitMargin}%
                 </div>
-                <div className="text-xs text-gray-500 mt-1">
+                <div className="text-xs text-foreground/50 mt-1">
                   Of total income
                 </div>
               </div>
             </div>
 
             {/* Income Table */}
-            <div className="bg-white rounded-lg shadow-sm border mb-6">
+            <div className="bg-card rounded-lg shadow-sm border mb-6">
               <div className="px-6 py-4 border-b">
-                <h2 className="text-lg font-semibold text-gray-900">Income Transactions</h2>
+                <h2 className="text-lg font-semibold text-foreground">Income Transactions</h2>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50 border-b">
+                  <thead className="bg-card-50 border-b">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">
                         Date
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">
                         Invoice No
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">
                         Customer
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">
                         Description
                       </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-right text-xs font-medium text-foreground uppercase tracking-wider">
                         Amount
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-card divide-y divide-gray-200">
                     {reportData.income.length > 0 ? (
                       reportData.income.map((item: IncomeTransaction) => (
-                        <tr key={item.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <tr key={item.id} className="hover:bg-secondary">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
                             {formatDate(item.issue_date)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
                             {item.invoice_no}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
                             {getName(item.customers)}
                           </td>
-                          <td className="px-6 py-4 text-sm text-gray-900">
+                          <td className="px-6 py-4 text-sm text-foreground">
                             {item.notes || "Invoice payment"}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-green-600">
@@ -405,9 +405,9 @@ export default function CodeReportPage() {
                       </tr>
                     )}
                   </tbody>
-                  <tfoot className="bg-gray-50">
+                  <tfoot className="bg-secondary">
                     <tr>
-                      <td colSpan={4} className="px-6 py-4 text-sm font-semibold text-gray-900 text-right">
+                      <td colSpan={4} className="px-6 py-4 text-sm font-semibold text-foreground text-right">
                         Total Income:
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-600 text-right">
@@ -420,51 +420,51 @@ export default function CodeReportPage() {
             </div>
 
             {/* Expenses Table */}
-            <div className="bg-white rounded-lg shadow-sm border">
+            <div className="bg-card rounded-lg shadow-sm border">
               <div className="px-6 py-4 border-b">
-                <h2 className="text-lg font-semibold text-gray-900">Expense Transactions</h2>
+                <h2 className="text-lg font-semibold text-foreground">Expense Transactions</h2>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50 border-b">
+                  <thead className="bg-card border-b">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">
                         Date
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">
                         Type
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">
                         Reference
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">
                         Vendor
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">
                         Description
                       </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-right text-xs font-medium text-foreground uppercase tracking-wider">
                         Amount
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-card divide-y divide-gray-200">
                     {reportData.expenses.length > 0 ? (
                       reportData.expenses.map((item: any) => (
-                        <tr key={item.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <tr key={item.id} className="hover:bg-secondary">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
                             {formatDate(item.date)}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
                             {item.type}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
                             {item.bill_no}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
                             {item.vendor}
                           </td>
-                          <td className="px-6 py-4 text-sm text-gray-900">
+                          <td className="px-6 py-4 text-sm text-foreground">
                             {item.description}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-red-600">
@@ -474,15 +474,15 @@ export default function CodeReportPage() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                        <td colSpan={6} className="px-6 py-8 text-center text-foreground">
                           No expense transactions found for this code
                         </td>
                       </tr>
                     )}
                   </tbody>
-                  <tfoot className="bg-gray-50">
+                  <tfoot className="bg-secondary">
                     <tr>
-                      <td colSpan={5} className="px-6 py-4 text-sm font-semibold text-gray-900 text-right">
+                      <td colSpan={5} className="px-6 py-4 text-sm font-semibold text-foreground text-right">
                         Total Expenses:
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-red-600 text-right">

@@ -1,3 +1,5 @@
+//components\topbar.tsx
+
 "use client"
 
 import { Search, Bell, LogOut } from "lucide-react"
@@ -35,7 +37,7 @@ export function Topbar() {
   }
 
   return (
-    <div className="flex items-center justify-between p-6 border-b bg-background">
+    <div className="flex items-center justify-between p-6 border-0 shadow-lg bg-background">
       <div className="flex items-center gap-4 flex-1 max-w-md">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />

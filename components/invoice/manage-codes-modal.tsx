@@ -1,3 +1,4 @@
+//components\invoice\manage-codes-modal.tsx
 import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -15,9 +16,11 @@ type Code = {
 type ManageCodesModalProps = {
   isOpen: boolean;
   onClose: () => void;
+  onUpdated?: () => void;
 };
 
-export default function ManageCodesModal({ isOpen, onClose }: ManageCodesModalProps) {
+
+export default function ManageCodesModal({ isOpen, onClose, onUpdated }: ManageCodesModalProps) {
   const supabase = createClient();
   const [codes, setCodes] = useState<Code[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -87,6 +90,7 @@ export default function ManageCodesModal({ isOpen, onClose }: ManageCodesModalPr
 
       resetForm();
       fetchCodes();
+      onUpdated?.();
     } catch (error: any) {
       console.error("Error saving code:", error);
       if (error.code === "23505") {
@@ -116,6 +120,7 @@ export default function ManageCodesModal({ isOpen, onClose }: ManageCodesModalPr
 
       if (error) throw error;
       fetchCodes();
+      onUpdated?.();
     } catch (error) {
       console.error("Error deleting code:", error);
       alert("Failed to delete code");

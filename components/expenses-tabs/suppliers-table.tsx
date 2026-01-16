@@ -17,11 +17,11 @@ import { MessageSquare, Printer, Settings, Search, ChevronDown } from "lucide-re
 type Supplier = {
   id: string
   name: string
-  company_name: string | null
   phone: string | null
   email: string | null
-  currency: string
+  address: string | null
   open_balance: number
+  currency: string
 }
 
 export default function SuppliersTable() {
@@ -33,35 +33,73 @@ export default function SuppliersTable() {
     fetchSuppliers()
   }, [])
 
-  async function fetchSuppliers() {
-    setLoading(true)
-    try {
-      const { data, error } = await supabase
-        .from("suppliers")
-        .select("*")
-        .order("name")
+async function fetchSuppliers() {
+  setLoading(true)
+  try {
+    // 1) Fetch suppliers
+    const { data: supplierRows, error: suppliersError } = await supabase
+      .from("suppliers")
+      .select("id, name, phone, email, address")
+      .order("name")
 
-      if (error) throw error
-      
-      const mappedData = (data || []).map(vendor => ({
-        id: vendor.id,
-        name: vendor.name,
-        company_name: vendor.company_name || null,
-        phone: vendor.phone || null,
-        email: vendor.email || null,
-        currency: "PHP",
-        open_balance: 0
-      }))
-      
-      setSuppliers(mappedData)
-    } catch (error) {
-      console.error("Error fetching suppliers:", error)
-    } finally {
-      setLoading(false)
+    if (suppliersError) throw suppliersError
+
+    // 2) Fetch open balances per supplier from bills (unpaid/partial/overdue)
+    const { data: openBills, error: billsError } = await supabase
+      .from("bills")
+      .select("vendor_id, balance_due, status")
+      .in("status", ["unpaid", "partial", "overdue"])
+
+    if (billsError) throw billsError
+
+    const thirtyDaysAgo = new Date()
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+      const { data: paidBills, error: paidErr } = await supabase
+        .from("bills")
+        .select("total_amount, status, bill_date")
+        .eq("status", "paid")
+        .gte("bill_date", thirtyDaysAgo.toISOString().split("T")[0])
+
+      if (paidErr) throw paidErr
+
+      const paidTotal = (paidBills ?? []).reduce(
+        (sum, b) => sum + Number(b.total_amount ?? 0),
+        0
+      )
+
+      setTotalPaidLast30Days(paidTotal)
+
+
+    const balanceByVendor = new Map<string, number>()
+    for (const b of openBills ?? []) {
+      const vid = b.vendor_id as string | null
+      if (!vid) continue
+      const current = balanceByVendor.get(vid) ?? 0
+      balanceByVendor.set(vid, current + Number(b.balance_due ?? 0))
     }
-  }
 
-  const totalPaidLast30Days = 228739.46 // This should come from your actual data
+    // 3) Map to table rows (REAL DATA)
+    const mapped: Supplier[] = (supplierRows ?? []).map((s) => ({
+      id: s.id,
+      name: s.name,
+      phone: s.phone ?? null,
+      email: s.email ?? null,
+      address: s.address ?? null,
+      currency: "PHP", // your DB doesn't store supplier currency; keep constant or add a column later
+      open_balance: balanceByVendor.get(s.id) ?? 0,
+    }))
+
+    setSuppliers(mapped)
+  } catch (error) {
+    console.error("Error fetching suppliers:", error)
+  } finally {
+    setLoading(false)
+  }
+}
+
+
+const [totalPaidLast30Days, setTotalPaidLast30Days] = useState(0)
 
   return (
     <div className="flex flex-col">
@@ -138,7 +176,7 @@ export default function SuppliersTable() {
                     <Checkbox />
                   </th>
                   <th className="text-left p-3 font-medium">SUPPLIER ↑</th>
-                  <th className="text-left p-3 font-medium">COMPANY NAME</th>
+                  <th className="text-left p-3 font-medium">ADDRESS</th>
                   <th className="text-left p-3 font-medium">PHONE</th>
                   <th className="text-left p-3 font-medium">EMAIL</th>
                   <th className="text-left p-3 font-medium">CURRENCY</th>
@@ -160,7 +198,7 @@ export default function SuppliersTable() {
                         <Checkbox />
                       </td>
                       <td className="p-3 font-medium">{supplier.name}</td>
-                      <td className="p-3">{supplier.company_name || "-"}</td>
+                      <td className="p-3">{supplier.address || "-"}</td>
                       <td className="p-3">{supplier.phone || "-"}</td>
                       <td className="p-3">{supplier.email || "-"}</td>
                       <td className="p-3">{supplier.currency}</td>

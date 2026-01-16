@@ -1,3 +1,5 @@
+//components\expenses-tabs\bills-table.tsx
+
 "use client"
 
 export default function BillsTable() {

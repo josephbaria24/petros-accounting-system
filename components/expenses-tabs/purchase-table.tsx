@@ -1,3 +1,5 @@
+//components\expenses-tabs\purchase-table.tsx
+
 "use client"
 
 export default function PurchaseOrdersTable() {
