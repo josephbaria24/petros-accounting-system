@@ -22,7 +22,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
-import { MessageSquare, Printer, Settings, Search, ChevronDown } from "lucide-react"
+import { MessageSquare, Printer, Settings, Search, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
 
 type Supplier = {
   id: string
@@ -40,6 +40,8 @@ export default function SuppliersTable() {
   const supabase = createClient()
 
   const [searchQuery, setSearchQuery] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
+  const rowsPerPage = 20
 
   // dialogs
   const [showNewSupplier, setShowNewSupplier] = useState(false)
@@ -280,7 +282,8 @@ async function fetchSuppliers() {
     setImportRows([])
     setImportPreviewCount(0)
     try {
-      const text = await file.text()
+      const raw = await file.text()
+      const text = raw.replace(/^\uFEFF/, "")
       const lines = text
         .split(/\r?\n/)
         .map((l) => l.trim())
@@ -290,27 +293,42 @@ async function fetchSuppliers() {
         throw new Error("CSV file is empty.")
       }
 
-      const header = parseCsvLine(lines[0]).map((h) => h.toLowerCase())
-      const idx = (name: string) => header.indexOf(name)
-
-      const nameIdx = idx("name")
-      if (nameIdx === -1) {
-        throw new Error('CSV must include a "name" column.')
+      const header = parseCsvLine(lines[0]).map((h) => h.toLowerCase().trim())
+      const idxOf = (...names: string[]) => {
+        for (const n of names) {
+          const i = header.indexOf(n)
+          if (i !== -1) return i
+        }
+        return -1
       }
 
-      const emailIdx = idx("email")
-      const phoneIdx = idx("phone")
-      const addressIdx = idx("address")
-      const notesIdx = idx("notes")
+      const nameIdx = idxOf("name", "supplier", "supplier name", "company", "company name")
+      if (nameIdx === -1) {
+        console.log("CSV headers found:", JSON.stringify(header))
+        throw new Error(`CSV must include a "name" or "supplier" column. Found headers: ${header.join(", ")}`)
+      }
+
+      const emailIdx = idxOf("email", "e-mail", "email address")
+      const phoneIdx = idxOf("phone", "phone number", "telephone", "mobile")
+      const addressIdx = idxOf("address", "street address", "street")
+      const cityIdx = idxOf("city")
+      const stateIdx = idxOf("state", "province")
+      const countryIdx = idxOf("country")
+      const zipIdx = idxOf("zip", "zip code", "postal code")
+      const notesIdx = idxOf("notes", "note", "memo")
+      const companyIdx = idxOf("company name", "company")
 
       const rows = lines.slice(1).map((line) => {
         const cols = parseCsvLine(line)
         const get = (i: number) => (i >= 0 ? (cols[i] ?? "").trim() : "")
+
+        const addressParts = [get(addressIdx), get(cityIdx), get(stateIdx), get(zipIdx), get(countryIdx)].filter(Boolean)
+
         return {
-          name: get(nameIdx),
+          name: get(nameIdx) || get(companyIdx),
           email: get(emailIdx) || undefined,
           phone: get(phoneIdx) || undefined,
-          address: get(addressIdx) || undefined,
+          address: addressParts.length > 0 ? addressParts.join(", ") : undefined,
           notes: get(notesIdx) || undefined,
         }
       })
@@ -417,7 +435,7 @@ const [totalPaidLast30Days, setTotalPaidLast30Days] = useState(0)
               placeholder="Search"
               className="pl-10"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
             />
           </div>
           <div className="flex items-center gap-2">
@@ -451,16 +469,23 @@ const [totalPaidLast30Days, setTotalPaidLast30Days] = useState(0)
                 </tr>
               </thead>
               <tbody>
-                {suppliers.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="text-center py-8 text-muted-foreground">
-                      No suppliers found. Click "New Supplier" to add one.
-                    </td>
-                  </tr>
-                ) : (
-                  suppliers
-                    .filter((s) => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
-                    .map((supplier) => (
+                {(() => {
+                  const filtered = suppliers.filter((s) => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                  const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage))
+                  const page = Math.min(currentPage, totalPages)
+                  const paginated = filtered.slice((page - 1) * rowsPerPage, page * rowsPerPage)
+
+                  if (filtered.length === 0) {
+                    return (
+                      <tr>
+                        <td colSpan={8} className="text-center py-8 text-muted-foreground">
+                          {suppliers.length === 0 ? 'No suppliers found. Click "New Supplier" to add one.' : "No matching suppliers found."}
+                        </td>
+                      </tr>
+                    )
+                  }
+
+                  return paginated.map((supplier) => (
                     <tr key={supplier.id} className="border-b hover:bg-secondary">
                       <td className="p-3">
                         <Checkbox />
@@ -494,9 +519,52 @@ const [totalPaidLast30Days, setTotalPaidLast30Days] = useState(0)
                       </td>
                     </tr>
                   ))
-                )}
+                })()}
               </tbody>
             </table>
+
+            {/* Pagination */}
+            {(() => {
+              const filtered = suppliers.filter((s) => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
+              const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage))
+              const page = Math.min(currentPage, totalPages)
+              const start = (page - 1) * rowsPerPage + 1
+              const end = Math.min(page * rowsPerPage, filtered.length)
+
+              if (filtered.length <= rowsPerPage) return null
+
+              return (
+                <div className="flex items-center justify-between px-4 py-3 border-t">
+                  <span className="text-sm text-muted-foreground">
+                    {start}-{end} of {filtered.length}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled={page <= 1} onClick={() => setCurrentPage(page - 1)}>
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
+                      .reduce<(number | string)[]>((acc, p, i, arr) => {
+                        if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("...")
+                        acc.push(p)
+                        return acc
+                      }, [])
+                      .map((p, i) =>
+                        typeof p === "string" ? (
+                          <span key={`ellipsis-${i}`} className="px-1 text-sm text-muted-foreground">…</span>
+                        ) : (
+                          <Button key={p} variant={p === page ? "default" : "outline"} size="sm" className="h-8 w-8 p-0 text-xs" onClick={() => setCurrentPage(p)}>
+                            {p}
+                          </Button>
+                        )
+                      )}
+                    <Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled={page >= totalPages} onClick={() => setCurrentPage(page + 1)}>
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )
+            })()}
           </div>
         )}
       </div>
