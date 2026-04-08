@@ -49,6 +49,7 @@ import {
   FileText,
   Wallet,
   Upload,
+  Banknote,
 } from "lucide-react";
 
 type Expense = {
@@ -1402,106 +1403,92 @@ export default function ExpensesDashboard() {
       <Dialog open={showPayBills} onOpenChange={setShowPayBills}>
         <DialogContent
           showCloseButton={false}
-          className="w-[calc(100vw-2rem)] max-w-[1400px] h-[90vh] p-0 overflow-hidden flex flex-col"
+          className="w-[calc(100vw-2rem)] max-w-[1100px] max-h-[92vh] p-0 gap-0 overflow-hidden flex flex-col"
         >
-          <div className="flex flex-col h-full">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b bg-white shrink-0">
-              <DialogTitle className="text-xl font-semibold">Pay Bills</DialogTitle>
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon">
-                  <HelpCircle className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="icon" onClick={() => setShowPayBills(false)}>
-                  <X className="h-4 w-4" />
-                </Button>
+          {/* ── Header ── */}
+          <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center text-white shrink-0">
+                <Banknote className="h-4 w-4" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-semibold leading-tight">Pay Bills</DialogTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Select bills to pay · {payBillsSelected.size} selected
+                </p>
               </div>
             </div>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-lg border">
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total payment</span>
+                <span className="text-lg font-bold text-green-700">
+                  PHP{(() => {
+                    let total = 0;
+                    payBillsSelected.forEach((id) => { total += payBillsAmounts[id] || 0; });
+                    return total.toLocaleString("en-US", { minimumFractionDigits: 2 });
+                  })()}
+                </span>
+              </div>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => setShowPayBills(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
 
-            {/* Gray Info Section */}
-            <div className="bg-gray-50 border-b px-6 py-5 shrink-0">
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-6">
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Payment account</Label>
-                    <Select value={payBillsAccount} onValueChange={setPayBillsAccount}>
-                      <SelectTrigger className="w-[200px] bg-white">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="cash-on-hand">Cash on hand</SelectItem>
-                        <SelectItem value="checking">Checking</SelectItem>
-                        <SelectItem value="savings">Savings</SelectItem>
-                        <SelectItem value="petty-cash">Petty Cash</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Balance: PHP{(() => {
-                        const balances: Record<string, string> = {
-                          "cash-on-hand": "0.00",
-                          "checking": "0.00",
-                          "savings": "0.00",
-                          "petty-cash": "0.00",
-                        };
-                        return balances[payBillsAccount] || "0.00";
-                      })()}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Payment date</Label>
-                    <Input
-                      type="date"
-                      value={payBillsDate}
-                      onChange={(e) => setPayBillsDate(e.target.value)}
-                      className="w-[180px] bg-white"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Reference number</Label>
-                    <Input
-                      value={payBillsRef}
-                      onChange={(e) => setPayBillsRef(e.target.value)}
-                      className="w-[180px] bg-white"
-                    />
-                  </div>
-                </div>
-                <div className="text-right">
-                  <Label className="text-xs text-muted-foreground">TOTAL PAYMENT AMOUNT</Label>
-                  <div className="text-3xl font-bold mt-1">
-                    PHP{(() => {
-                      let total = 0;
-                      payBillsSelected.forEach((id) => {
-                        total += payBillsAmounts[id] || 0;
-                      });
-                      return total.toLocaleString("en-US", { minimumFractionDigits: 2 });
+          {/* ── Body ── */}
+          <div className="flex-1 overflow-y-auto">
+
+            {/* Payment details */}
+            <div className="px-6 py-5">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payment account</Label>
+                  <Select value={payBillsAccount} onValueChange={setPayBillsAccount}>
+                    <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash-on-hand">Cash on hand</SelectItem>
+                      <SelectItem value="checking">Checking</SelectItem>
+                      <SelectItem value="savings">Savings</SelectItem>
+                      <SelectItem value="petty-cash">Petty Cash</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Balance: PHP{(() => {
+                      const balances: Record<string, string> = { "cash-on-hand": "0.00", "checking": "0.00", "savings": "0.00", "petty-cash": "0.00" };
+                      return balances[payBillsAccount] || "0.00";
                     })()}
-                  </div>
+                  </p>
                 </div>
-              </div>
-
-              {/* Currency */}
-              <div className="mt-3">
-                <Label className="text-xs text-muted-foreground">Currency</Label>
-                <Select defaultValue="php">
-                  <SelectTrigger className="w-[220px] bg-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="php">PHP - Philippine Peso</SelectItem>
-                    <SelectItem value="usd">USD - US Dollar</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payment date</Label>
+                  <Input type="date" value={payBillsDate} onChange={(e) => setPayBillsDate(e.target.value)} className="h-10" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Reference number</Label>
+                  <Input value={payBillsRef} onChange={(e) => setPayBillsRef(e.target.value)} className="h-10" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Currency</Label>
+                  <Select defaultValue="php">
+                    <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="php">PHP - Philippine Peso</SelectItem>
+                      <SelectItem value="usd">USD - US Dollar</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
 
-            {/* Filters Bar */}
-            <div className="flex items-center justify-between px-6 py-3 border-b shrink-0">
+            <div className="border-t" />
+
+            {/* Filters */}
+            <div className="px-6 py-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="border-green-600 text-green-600">
-                      Filters
-                      <ChevronDown className="ml-2 h-4 w-4" />
+                    <Button variant="outline" size="sm" className="h-8 text-xs">
+                      Filters <ChevronDown className="ml-1.5 h-3.5 w-3.5" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent>
@@ -1510,36 +1497,28 @@ export default function ExpensesDashboard() {
                     <DropdownMenuItem onClick={() => setPayBillsDateFilter("all")}>All time</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <Button variant="outline" size="sm">
+                <span className="text-xs text-muted-foreground px-2 py-1 bg-muted/50 rounded">
                   {payBillsDateFilter === "last-12-months" ? "Last 12 months" : payBillsDateFilter === "last-30-days" ? "Last 30 days" : "All time"}
-                </Button>
+                </span>
               </div>
-              <Button variant="ghost" size="icon">
-                <Settings className="h-4 w-4" />
-              </Button>
             </div>
 
-            {/* Bills Table */}
-            <div className="flex-1 overflow-auto px-6 py-4">
+            <div className="border-t" />
+
+            {/* ── Bills table ── */}
+            <div className="px-6 py-5">
               {(() => {
                 const unpaidBills = bills.filter((b) => b.status !== "paid");
 
                 if (unpaidBills.length === 0) {
                   return (
-                    <div className="flex flex-col items-center justify-center py-20 text-center">
-                      <h3 className="text-xl font-bold mb-2">
-                        Looks like you don&apos;t have any bills to pay.
-                      </h3>
-                      <p className="text-sm text-muted-foreground mb-4">
-                        Enter a bill to schedule a payment.
-                      </p>
-                      <Button
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                        onClick={() => {
-                          setShowPayBills(false);
-                          setShowBillDialog(true);
-                        }}
-                      >
+                    <div className="flex flex-col items-center justify-center py-16 text-center">
+                      <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
+                        <Banknote className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                      <h3 className="text-base font-semibold mb-1">No bills to pay</h3>
+                      <p className="text-sm text-muted-foreground mb-5">Enter a bill to schedule a payment.</p>
+                      <Button className="h-9 text-sm bg-green-600 hover:bg-green-700 text-white" onClick={() => { setShowPayBills(false); setShowBillDialog(true); }}>
                         Enter new bill
                       </Button>
                     </div>
@@ -1548,32 +1527,21 @@ export default function ExpensesDashboard() {
 
                 return (
                   <div className="border rounded-lg overflow-hidden">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50 border-b">
-                        <tr>
-                          <th className="text-left p-3 w-10">
-                            <Checkbox
-                              checked={unpaidBills.length > 0 && payBillsSelected.size === unpaidBills.length}
-                              onCheckedChange={() => {
-                                if (payBillsSelected.size === unpaidBills.length) {
-                                  setPayBillsSelected(new Set());
-                                } else {
-                                  setPayBillsSelected(new Set(unpaidBills.map((b) => b.id)));
-                                }
-                              }}
-                            />
-                          </th>
-                          <th className="text-left p-3 font-medium text-xs text-muted-foreground tracking-wider">PAYEE</th>
-                          <th className="text-left p-3 font-medium text-xs text-muted-foreground tracking-wider">REF NO.</th>
-                          <th className="text-left p-3 font-medium text-xs text-muted-foreground tracking-wider">DUE DATE</th>
-                          <th className="text-right p-3 font-medium text-xs text-muted-foreground tracking-wider">OPEN BALANCE</th>
-                          <th className="text-right p-3 font-medium text-xs text-muted-foreground tracking-wider">PAYMENT</th>
+                    <table className="w-full table-fixed text-sm">
+                      <thead>
+                        <tr className="bg-muted/50 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                          <th className="px-3 py-2.5 text-left" style={{width: 40}} />
+                          <th className="px-3 py-2.5 text-left">Payee</th>
+                          <th className="px-3 py-2.5 text-left" style={{width: 120}}>Ref no.</th>
+                          <th className="px-3 py-2.5 text-left" style={{width: 110}}>Due date</th>
+                          <th className="px-3 py-2.5 text-right" style={{width: 140}}>Open balance</th>
+                          <th className="px-3 py-2.5 text-right" style={{width: 140}}>Payment</th>
                         </tr>
                       </thead>
                       <tbody>
                         {unpaidBills.map((bill) => (
-                          <tr key={bill.id} className="border-b hover:bg-secondary/50 transition-colors">
-                            <td className="p-3">
+                          <tr key={bill.id} className="border-t group hover:bg-muted/30 transition-colors">
+                            <td className="px-3 py-2.5">
                               <Checkbox
                                 checked={payBillsSelected.has(bill.id)}
                                 onCheckedChange={() => {
@@ -1584,30 +1552,21 @@ export default function ExpensesDashboard() {
                                 }}
                               />
                             </td>
-                            <td className="p-3 font-medium">{bill.supplier?.name || "Unknown"}</td>
-                            <td className="p-3">{bill.bill_no}</td>
-                            <td className="p-3">
-                              {bill.due_date
-                                ? new Date(bill.due_date).toLocaleDateString("en-US", {
-                                  month: "2-digit",
-                                  day: "2-digit",
-                                  year: "numeric",
-                                })
-                                : "—"}
+                            <td className="px-3 py-2.5 font-medium">{bill.supplier?.name || "Unknown"}</td>
+                            <td className="px-3 py-2.5 text-muted-foreground">{bill.bill_no}</td>
+                            <td className="px-3 py-2.5">
+                              {bill.due_date ? new Date(bill.due_date).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" }) : "—"}
                             </td>
-                            <td className="p-3 text-right">
+                            <td className="px-3 py-2.5 text-right">
                               PHP{(bill.total_amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
                             </td>
-                            <td className="p-3 text-right">
+                            <td className="px-3 py-2.5 text-right">
                               <Input
                                 type="number"
-                                className="w-[140px] text-right ml-auto"
+                                className="h-9 w-28 text-right text-sm ml-auto"
                                 value={payBillsAmounts[bill.id] ?? (bill.total_amount || 0)}
                                 onChange={(e) => {
-                                  setPayBillsAmounts((prev) => ({
-                                    ...prev,
-                                    [bill.id]: parseFloat(e.target.value) || 0,
-                                  }));
+                                  setPayBillsAmounts((prev) => ({ ...prev, [bill.id]: parseFloat(e.target.value) || 0 }));
                                 }}
                               />
                             </td>
@@ -1620,52 +1579,37 @@ export default function ExpensesDashboard() {
               })()}
             </div>
 
-            {/* Footer */}
-            <div className="flex items-center justify-between px-6 py-4 border-t bg-white shrink-0">
+          </div>
+
+          {/* ── Footer ── */}
+          <div className="flex items-center justify-between px-6 py-4 border-t bg-muted/20 shrink-0">
+            <Button variant="outline" className="h-9 text-sm" onClick={() => setShowPayBills(false)}>Cancel</Button>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-muted-foreground">
+                {payBillsSelected.size} bill{payBillsSelected.size !== 1 ? "s" : ""} selected
+              </span>
               <Button
-                variant="link"
-                className="text-green-600 hover:text-green-700 px-0 font-semibold"
-                onClick={() => setShowPayBills(false)}
-              >
-                Cancel
-              </Button>
-              <div className="flex items-center gap-3">
-                <div className="text-sm text-muted-foreground">
-                  {payBillsSelected.size} bill{payBillsSelected.size !== 1 ? "s" : ""} selected
-                </div>
-                <Button
-                  className="bg-green-600 hover:bg-green-700 text-white px-8"
-                  disabled={payBillsSelected.size === 0}
-                  onClick={async () => {
-                    try {
-                      const selectedIds = Array.from(payBillsSelected);
-                      for (const id of selectedIds) {
-                        const { error } = await supabase
-                          .from("bills")
-                          .update({ status: "paid" })
-                          .eq("id", id);
-                        if (error) throw error;
-                      }
-                      toast({
-                        title: "Bills Paid",
-                        description: `${selectedIds.length} bill${selectedIds.length > 1 ? "s" : ""} marked as paid.`,
-                      });
-                      setShowPayBills(false);
-                      setPayBillsSelected(new Set());
-                      await fetchData();
-                    } catch (err: any) {
-                      console.error(err);
-                      toast({
-                        title: "Error",
-                        description: err?.message ?? "Failed to pay bills.",
-                        variant: "destructive",
-                      });
+                className="h-9 text-sm bg-green-600 hover:bg-green-700 text-white px-6"
+                disabled={payBillsSelected.size === 0}
+                onClick={async () => {
+                  try {
+                    const selectedIds = Array.from(payBillsSelected);
+                    for (const id of selectedIds) {
+                      const { error } = await supabase.from("bills").update({ status: "paid" }).eq("id", id);
+                      if (error) throw error;
                     }
-                  }}
-                >
-                  Pay selected bills
-                </Button>
-              </div>
+                    toast({ title: "Bills Paid", description: `${selectedIds.length} bill${selectedIds.length > 1 ? "s" : ""} marked as paid.` });
+                    setShowPayBills(false);
+                    setPayBillsSelected(new Set());
+                    await fetchData();
+                  } catch (err: any) {
+                    console.error(err);
+                    toast({ title: "Error", description: err?.message ?? "Failed to pay bills.", variant: "destructive" });
+                  }
+                }}
+              >
+                Pay selected bills
+              </Button>
             </div>
           </div>
         </DialogContent>
@@ -1752,6 +1696,10 @@ export default function ExpensesDashboard() {
                       <SelectItem value="cash">Cash</SelectItem>
                       <SelectItem value="check">Check</SelectItem>
                       <SelectItem value="credit-card">Credit Card</SelectItem>
+                      <SelectItem value="gcash">GCash</SelectItem>
+                      <SelectItem value="paymaya">PayMaya</SelectItem>
+                      <SelectItem value="paypal">PayPal</SelectItem>
+                      <SelectItem value="bank-transfer">Bank Transfer</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

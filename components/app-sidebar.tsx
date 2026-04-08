@@ -202,7 +202,7 @@ export function AppSidebar() {
           ))}
         </SidebarContent>
 
-        <SidebarFooter className="p-4">
+        <SidebarFooter className="p-4 space-y-3">
           <div className="flex items-center gap-3">
             <Avatar className="h-8 w-8">
               <AvatarImage
@@ -216,13 +216,18 @@ export function AppSidebar() {
               <span className="text-xs text-muted-foreground">Petrosphere Accounting</span>
             </div>
           </div>
+          <div className="pt-2 border-t">
+            <p className="text-xs text-center text-muted-foreground">
+              Developed by <span className="font-bold text-foreground">PetroCore<span className="text-red-500">X</span></span>
+            </p>
+          </div>
         </SidebarFooter>
       </Sidebar>
 
       {/* Render submenu using portal */}
       {hoveredItem && submenuPosition && typeof window !== 'undefined' && createPortal(
         <div 
-          className="fixed w-48 bg-background border rounded-md shadow-lg py-1 z-[100]"
+          className="fixed w-48 bg-background border rounded-md shadow-lg py-1 z-100"
           style={{
             top: `${submenuPosition.top}px`,
             left: `${submenuPosition.left}px`

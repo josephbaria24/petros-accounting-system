@@ -149,6 +149,33 @@ export default function CreateInvoicePage() {
   const handleCodeSelect = (codeValue: string) => {
     setSelectedCode(codeValue);
     setShowCodeSelector(false);
+
+    if (codeValue && codeValue !== "none") {
+      const code = codes.find(c => c.code === codeValue);
+      if (!code) return;
+
+      const alreadyAdded = items.some(
+        (item) => item.productService === code.code || item.productService === code.name
+      );
+      if (alreadyAdded) return;
+
+      const hasEmptyFirstRow =
+        items.length === 1 &&
+        !items[0].productService &&
+        !items[0].description &&
+        items[0].rate === 0;
+
+      if (hasEmptyFirstRow) {
+        setItems([
+          { ...items[0], productService: code.code, description: code.name },
+        ]);
+      } else {
+        setItems((prev) => [
+          ...prev,
+          { serviceDate: "", productService: code.code, description: code.name, quantity: 1, rate: 0, tax: 0, class: "" },
+        ]);
+      }
+    }
   };
 
   useEffect(() => {

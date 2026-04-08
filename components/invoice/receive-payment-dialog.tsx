@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, Settings, ArrowBigDownDash, MessageCircle } from "lucide-react";
+import { X, Settings, ArrowBigDownDash, MessageCircle, DollarSign, Upload, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -242,404 +242,244 @@ const handleSavePayment = async (closeAfterSave: boolean = false) => {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto p-0">
-        {/* Header */}
-        <DialogHeader className="border-b p-6 pb-4">
-          <div className="flex items-center justify-between">
-            <DialogTitle className="text-2xl font-semibold flex items-center gap-2">
-              <span className="">
-                <ArrowBigDownDash />
+      <DialogContent showCloseButton={false} className="w-[calc(100vw-2rem)] max-w-[1100px] max-h-[92vh] p-0 gap-0 overflow-hidden flex flex-col">
+        {/* ── Header ── */}
+        <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center text-white shrink-0">
+              <DollarSign className="h-4 w-4" />
+            </div>
+            <div>
+              <DialogTitle className="text-base font-semibold leading-tight">Receive Payment</DialogTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {invoice.customer_name} · Invoice #{invoice.invoice_no}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-lg border">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Amount received</span>
+              <span className="text-lg font-bold text-green-700">
+                PHP{parseFloat(amountReceived || "0").toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
-              Receive Payment
-            </DialogTitle>
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="sm" className="text-gray-600">
-                <MessageCircle /> Feedback
-              </Button>
-              <Button variant="ghost" size="sm">
-                <X className="h-5 w-5" onClick={() => onOpenChange(false)} />
-              </Button>
             </div>
-          </div>
-        </DialogHeader>
-
-        <div className="p-6">
-          {/* Amount Received Section */}
-          <div className="flex justify-end mb-6">
-            <div className="text-right">
-              <div className="text-sm text-gray-600 mb-1">AMOUNT RECEIVED</div>
-              <div className="text-4xl font-bold">
-                PHP
-                {parseFloat(amountReceived || "0").toLocaleString("en-PH", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </div>
-              <div className="text-sm text-gray-600 mt-1">Customer balance</div>
-              <div className="text-sm font-semibold">
-                PHP
-                {invoice.balance_due.toLocaleString("en-PH", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* Customer Information */}
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            <div>
-              <Label className="text-sm font-medium mb-2">Customer</Label>
-              <div className="px-3 py-2 border rounded-md">
-                {invoice.customer_name}
-              </div>
-            </div>
-            <div>
-              <Label className="text-sm font-medium mb-2">Email</Label>
-              <div className="flex gap-2">
-                <Input
-                  type="email"
-                  value={invoice.customer_email || ""}
-                  readOnly
-                  className="bg-gray-50"
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="whitespace-nowrap"
-                >
-                  Find by invoice no.
-                </Button>
-              </div>
-            </div>
-            <div>
-              <Label className="text-sm font-medium mb-2">Cc/Bcc</Label>
-              <div className="flex items-start gap-2">
-                <Input placeholder="" />
-                <Checkbox
-                  checked={sendLater}
-                  onCheckedChange={(checked) =>
-                    setSendLater(checked as boolean)
-                  }
-                  className="mt-2"
-                />
-                <span className="text-sm mt-1.5">Send later</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Payment Details */}
-          <div className="grid grid-cols-4 gap-4 mb-6">
-            <div>
-              <Label className="text-sm font-medium mb-2">Payment Date</Label>
-              <Input
-                type="date"
-                value={paymentDate}
-                onChange={(e) => setPaymentDate(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label className="text-sm font-medium mb-2">Payment method</Label>
-              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose payment method" />
-                </SelectTrigger>
-                <SelectContent>
-                  {paymentMethods.map((method) => (
-                    <SelectItem
-                      key={method}
-                      value={method.toLowerCase().replace(/\s+/g, "-")}
-                    >
-                      {method}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-sm font-medium mb-2">Reference no.</Label>
-              <Input
-                value={referenceNo}
-                onChange={(e) => setReferenceNo(e.target.value)}
-                placeholder=""
-              />
-            </div>
-            <div>
-              <Label className="text-sm font-medium mb-2">Deposit To</Label>
-              <Select value={depositTo} onValueChange={setDepositTo}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {depositOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Outstanding Transactions */}
-          <div className="border rounded-lg overflow-hidden">
-            <div className="bg-card p-4 border-b">
-              <h3 className="font-semibold text-lg">
-                Outstanding Transactions
-              </h3>
-            </div>
-
-            <div className="p-4">
-              <div className="flex items-center gap-4 mb-4">
-                <Input placeholder="Find Invoice No." className="max-w-xs" />
-                <Button variant="outline" size="sm">
-                  Filter →
-                </Button>
-                <Button variant="link" size="sm" className="text-blue-600">
-                  All
-                </Button>
-                <div className="ml-auto">
-                  <Button variant="ghost" size="sm">
-                    <Settings className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-
-              {/* Table */}
-              <div className="border rounded-lg overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-card border-b">
-                    <tr>
-                      <th className="px-4 py-3 text-left w-12">
-                        <Checkbox
-                          checked={selectedInvoices.has(invoice.id)}
-                          onCheckedChange={() => {}}
-                        />
-                      </th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">
-                        DESCRIPTION
-                      </th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">
-                        DUE DATE
-                      </th>
-                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">
-                        ORIGINAL AMOUNT
-                      </th>
-                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">
-                        OPEN BALANCE
-                      </th>
-                      <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">
-                        PAYMENT
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-b">
-                      <td className="px-4 py-3">
-                        <Checkbox checked />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="text-blue-600 font-medium">
-                          Invoice # {invoice.invoice_no}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          (
-                          {new Date(invoice.due_date || "").toLocaleDateString(
-                            "en-US",
-                            {
-                              month: "2-digit",
-                              day: "2-digit",
-                              year: "numeric",
-                            },
-                          )}
-                          )
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-sm">
-                        {new Date(invoice.due_date || "").toLocaleDateString(
-                          "en-US",
-                          {
-                            month: "2-digit",
-                            day: "2-digit",
-                            year: "numeric",
-                          },
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right text-sm">
-                        PHP
-                        {invoice.total_amount.toLocaleString("en-PH", {
-                          minimumFractionDigits: 2,
-                        })}
-                      </td>
-                      <td className="px-4 py-3 text-right text-sm">
-                        PHP
-                        {invoice.balance_due.toLocaleString("en-PH", {
-                          minimumFractionDigits: 2,
-                        })}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <Input
-                          type="number"
-                          value={amountReceived}
-                          onChange={(e) => setAmountReceived(e.target.value)}
-                          className="w-32 ml-auto text-right"
-                          step="0.01"
-                        />
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-
-                {/* Pagination */}
-                <div className="flex items-center justify-between p-3 border-t bg-card">
-                  <div className="text-sm text-gray-600">1-1 of 1</div>
-                  <Button variant="ghost" size="sm" disabled>
-                    1
-                  </Button>
-                </div>
-              </div>
-
-              {/* Amount to Apply */}
-              <div className="flex justify-end mt-4">
-                <div className="text-right">
-                  <span className="text-sm text-gray-600 mr-4">
-                    Amount to Apply
-                  </span>
-                  <span className="text-lg font-semibold">
-                    PHP
-                    {parseFloat(amountReceived || "0").toLocaleString("en-PH", {
-                      minimumFractionDigits: 2,
-                    })}
-                  </span>
-                </div>
-              </div>
-
-              {/* Amount to Credit */}
-              <div className="flex justify-end mt-2">
-                <div className="text-right">
-                  <span className="text-sm text-gray-600 mr-4">
-                    Amount to Credit
-                  </span>
-                  <span className="text-lg font-semibold">
-                    PHP0.00
-                  </span>
-                </div>
-              </div>
-
-              {/* Clear Payment Button */}
-              <div className="flex justify-end mt-4">
-                <Button 
-                  variant="outline" 
-                  className="border-green-600 text-green-600 hover:bg-green-50"
-                  onClick={() => setAmountReceived("")}
-                >
-                  Clear Payment
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          {/* Memo Section */}
-          <div className="mt-6">
-            <Label className="text-sm font-medium mb-2">Memo</Label>
-            <textarea
-              value={memo}
-              onChange={(e) => setMemo(e.target.value)}
-              placeholder="Note"
-              className="w-full min-h-[100px] p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          {/* Attachments Section */}
-          <div className="mt-6 border rounded-lg p-4">
-            <Label className="text-sm font-medium mb-3 block">Attachments</Label>
-            
-            {attachments.length > 0 && (
-              <div className="mb-4 space-y-2">
-                {attachments.map((attachment, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded border">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm">{attachment.filename}</span>
-                      <span className="text-xs text-gray-500">
-                        ({(attachment.file_size / 1024).toFixed(2)} KB)
-                      </span>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleRemoveAttachment(index)}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="text-center">
-              <input
-                ref={fileInputRef}
-                type="file"
-                onChange={handleFileSelect}
-                className="hidden"
-                multiple
-              />
-              <Button
-                variant="link"
-                className="text-blue-600"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploadingAttachment}
-              >
-                {uploadingAttachment ? "Uploading..." : "Add attachment"}
-              </Button>
-              <div className="text-xs text-gray-500 mt-1">
-                Max file size: 20 MB
-              </div>
-            </div>
-
-            {attachments.length > 0 && (
-              <div className="mt-3 text-center">
-                <Button
-                  variant="link"
-                  className="text-blue-600 text-sm"
-                  onClick={() => setShowExistingAttachments(!showExistingAttachments)}
-                >
-                  {showExistingAttachments ? "Hide existing" : "Show existing"}
-                </Button>
-              </div>
-            )}
-          </div>
-
-          <div className="mt-4 text-center">
-            <Button variant="link" className="text-blue-600 text-sm">
-              Privacy
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => onOpenChange(false)}>
+              <X className="h-4 w-4" />
             </Button>
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="border-t p-6 bg-card flex items-center justify-between">
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button variant="outline">Print</Button>
+        {/* ── Body ── */}
+        <div className="flex-1 overflow-y-auto">
+
+          {/* Customer Info */}
+          <div className="px-6 py-5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Customer</Label>
+                <div className="px-3 py-2.5 border rounded-md bg-muted/30 text-sm font-medium h-10 flex items-center">
+                  {invoice.customer_name}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Email</Label>
+                <div className="flex gap-2">
+                  <Input type="email" value={invoice.customer_email || ""} readOnly className="h-10 bg-muted/30" />
+                  <Button variant="outline" size="sm" className="h-10 whitespace-nowrap text-xs">Find by invoice no.</Button>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cc/Bcc</Label>
+                <div className="flex items-center gap-2">
+                  <Input placeholder="" className="h-10" />
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Checkbox checked={sendLater} onCheckedChange={(checked) => setSendLater(checked as boolean)} />
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">Send later</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="flex gap-3">
-            <Button
-              variant="outline"
-              className="border-green-600 text-green-600 hover:bg-green-50"
-              onClick={() => handleSavePayment(false)}
-              disabled={saving}
-            >
+
+          <div className="border-t" />
+
+          {/* Payment Details */}
+          <div className="px-6 py-5">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payment date</Label>
+                <Input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className="h-10" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payment method</Label>
+                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                  <SelectTrigger className="h-10"><SelectValue placeholder="Choose payment method" /></SelectTrigger>
+                  <SelectContent>
+                    {paymentMethods.map((method) => (
+                      <SelectItem key={method} value={method.toLowerCase().replace(/\s+/g, "-")}>{method}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Reference no.</Label>
+                <Input value={referenceNo} onChange={(e) => setReferenceNo(e.target.value)} className="h-10" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Deposit to</Label>
+                <Select value={depositTo} onValueChange={setDepositTo}>
+                  <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {depositOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t" />
+
+          {/* ── Outstanding Transactions ── */}
+          <div className="px-6 py-5">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Outstanding Transactions</h3>
+            </div>
+
+            <div className="flex items-center gap-3 mb-3">
+              <Input placeholder="Find Invoice No." className="h-9 max-w-[220px] text-sm" />
+              <Button variant="outline" size="sm" className="h-9 text-xs">Filter</Button>
+              <Button variant="ghost" size="sm" className="h-9 text-xs text-green-700 hover:text-green-800">All</Button>
+            </div>
+
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full table-fixed text-sm">
+                <thead>
+                  <tr className="bg-muted/50 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <th className="px-3 py-2.5 text-left" style={{width: 40}} />
+                    <th className="px-3 py-2.5 text-left">Description</th>
+                    <th className="px-3 py-2.5 text-left" style={{width: 110}}>Due date</th>
+                    <th className="px-3 py-2.5 text-right" style={{width: 130}}>Original amount</th>
+                    <th className="px-3 py-2.5 text-right" style={{width: 130}}>Open balance</th>
+                    <th className="px-3 py-2.5 text-right" style={{width: 130}}>Payment</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-t hover:bg-muted/30 transition-colors">
+                    <td className="px-3 py-2.5"><Checkbox checked /></td>
+                    <td className="px-3 py-2.5">
+                      <div className="text-green-700 font-medium text-sm">Invoice # {invoice.invoice_no}</div>
+                      <div className="text-xs text-muted-foreground">
+                        ({new Date(invoice.due_date || "").toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })})
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 text-sm">
+                      {new Date(invoice.due_date || "").toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })}
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-sm">
+                      PHP{invoice.total_amount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-sm">
+                      PHP{invoice.balance_due.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-3 py-2.5 text-right">
+                      <Input type="number" value={amountReceived} onChange={(e) => setAmountReceived(e.target.value)} className="h-9 w-28 ml-auto text-right text-sm" step="0.01" />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div className="flex items-center justify-between px-3 py-2 border-t bg-muted/20 text-xs text-muted-foreground">
+                <span>1-1 of 1</span>
+              </div>
+            </div>
+
+            {/* Totals */}
+            <div className="flex justify-end mt-4">
+              <div className="w-64 space-y-1.5 text-sm">
+                <div className="flex justify-between py-1">
+                  <span className="text-muted-foreground">Amount to Apply</span>
+                  <span className="font-semibold">PHP{parseFloat(amountReceived || "0").toLocaleString("en-PH", { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex justify-between py-1">
+                  <span className="text-muted-foreground">Amount to Credit</span>
+                  <span className="font-semibold">PHP0.00</span>
+                </div>
+                <div className="pt-1.5 border-t">
+                  <Button variant="ghost" size="sm" onClick={() => setAmountReceived("")} className="h-8 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 px-2">
+                    Clear Payment
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t" />
+
+          {/* ── Memo & Attachments ── */}
+          <div className="px-6 py-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Memo</Label>
+                </div>
+                <textarea
+                  value={memo}
+                  onChange={(e) => setMemo(e.target.value)}
+                  placeholder="Add a note..."
+                  className="w-full min-h-[100px] p-3 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0" />
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Attachments</Label>
+                </div>
+
+                {attachments.length > 0 && (
+                  <div className="space-y-2 mb-3">
+                    {attachments.map((attachment, index) => (
+                      <div key={index} className="flex items-center justify-between p-2.5 bg-muted/30 rounded-lg border text-sm">
+                        <div className="flex items-center gap-2">
+                          <Paperclip className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="font-medium">{attachment.filename}</span>
+                          <span className="text-xs text-muted-foreground">({(attachment.file_size / 1024).toFixed(1)} KB)</span>
+                        </div>
+                        <Button variant="ghost" size="sm" onClick={() => handleRemoveAttachment(index)} className="h-7 w-7 p-0 text-muted-foreground hover:text-red-500">
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <input ref={fileInputRef} type="file" onChange={handleFileSelect} className="hidden" multiple />
+                <div
+                  className="border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-muted/30 transition-colors"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload className="h-6 w-6 text-muted-foreground mb-2" />
+                  <p className="text-sm font-medium">{uploadingAttachment ? "Uploading..." : "Drag & drop files here"}</p>
+                  <p className="text-xs text-muted-foreground mt-1">or click to browse · Max 20 MB</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        {/* ── Footer ── */}
+        <div className="flex items-center justify-between px-6 py-4 border-t bg-muted/20 shrink-0">
+          <Button variant="outline" className="h-9 text-sm" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" className="h-9 text-sm">Print</Button>
+            <Button className="h-9 text-sm bg-green-600 hover:bg-green-700 text-white" onClick={() => handleSavePayment(false)} disabled={saving}>
               Save
             </Button>
-            <Button
-              className="bg-green-600 hover:bg-green-700"
-              onClick={() => handleSavePayment(true)}
-              disabled={saving}
-            >
+            <Button className="h-9 text-sm bg-green-600 hover:bg-green-700 text-white" onClick={() => handleSavePayment(true)} disabled={saving}>
               {saving ? "Saving..." : "Save and close"}
             </Button>
           </div>
