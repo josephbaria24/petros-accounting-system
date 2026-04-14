@@ -1,5 +1,6 @@
 //components\sales-tabs\customers-table.tsx
 "use client"
+import { sileo } from "sileo"
 
 import { useState } from 'react';
 import { Plus, Search, ChevronDown, Upload, X, File, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -503,7 +504,7 @@ export default function CustomersTable() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 20 * 1024 * 1024) {
-      alert("File too large. Maximum file size is 20MB");
+      sileo.warning({ title: "File too large", description: "Maximum file size is 20MB." });
       return;
     }
     setUploading(true);

@@ -1,4 +1,5 @@
 "use client";
+import { sileo } from "sileo";
 
 import { useEffect, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -44,11 +45,11 @@ export default function CustomersPage() {
   );
 
   const handleCreateInvoice = () => {
-    alert("Redirecting to invoice creation page...");
+    sileo.info({ title: "Redirecting", description: "Going to invoice creation page..." });
   };
 
   const handleSendReminders = () => {
-    alert("Sending reminder emails to overdue customers...");
+    sileo.info({ title: "Sending reminders", description: "Sending reminder emails to overdue customers..." });
   };
 
   const handleDownloadPDFs = () => {
@@ -160,3 +161,4 @@ export default function CustomersPage() {
     </div>
   );
 }
+

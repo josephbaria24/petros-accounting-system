@@ -1,4 +1,5 @@
 //components\invoice\manage-tags-modal.tsx
+import { sileo } from "sileo";
 import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -185,7 +186,7 @@ export default function ManageTagsModal({ isOpen, onClose, onTagSelect }: Manage
       fetchTagsAndGroups();
     } catch (error) {
       console.error("Error updating tag:", error);
-      alert("Failed to update tag");
+      sileo.error({ title: "Update failed", description: "Could not update the tag." });
     }
   };
 
@@ -209,7 +210,7 @@ export default function ManageTagsModal({ isOpen, onClose, onTagSelect }: Manage
       fetchTagsAndGroups();
     } catch (error) {
       console.error("Error updating group:", error);
-      alert("Failed to update group");
+      sileo.error({ title: "Update failed", description: "Could not update the group." });
     }
   };
 
@@ -231,7 +232,7 @@ export default function ManageTagsModal({ isOpen, onClose, onTagSelect }: Manage
       fetchTagsAndGroups();
     } catch (error) {
       console.error("Error deleting tag:", error);
-      alert("Failed to delete tag");
+      sileo.error({ title: "Delete failed", description: "Could not delete the tag." });
     }
   };
 
@@ -250,7 +251,7 @@ export default function ManageTagsModal({ isOpen, onClose, onTagSelect }: Manage
       fetchTagsAndGroups();
     } catch (error) {
       console.error("Error deleting group:", error);
-      alert("Failed to delete group");
+      sileo.error({ title: "Delete failed", description: "Could not delete the group." });
     }
   };
 

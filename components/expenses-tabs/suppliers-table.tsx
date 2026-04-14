@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase-client"
+import { fetchAllPaged } from "@/lib/supabase-fetch-all"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -67,50 +68,48 @@ export default function SuppliersTable() {
     Array<{ name: string; email?: string; phone?: string; address?: string; notes?: string }>
   >([])
 
+  const [totalPaidLast30Days, setTotalPaidLast30Days] = useState(0)
+
   useEffect(() => {
     fetchSuppliers()
   }, [])
 
-async function fetchSuppliers() {
-  setLoading(true)
-  try {
-    // 1) Fetch suppliers
-    const { data: supplierRows, error: suppliersError } = await supabase
-      .from("suppliers")
-      .select("id, name, phone, email, address")
-      .order("name")
+  /** Supabase PostgREST returns at most 1000 rows per request; paginate until exhausted. */
+  async function fetchSuppliers() {
+    setLoading(true)
+    try {
+    // 1) Fetch all suppliers (batched)
+    const supplierRows = await fetchAllPaged((from, to) =>
+      supabase.from("suppliers").select("id, name, phone, email, address").order("name").range(from, to)
+    )
 
-    if (suppliersError) throw suppliersError
-
-    // 2) Fetch open balances per supplier from bills (unpaid/partial/overdue)
-    const { data: openBills, error: billsError } = await supabase
-      .from("bills")
-      .select("vendor_id, balance_due, status")
-      .in("status", ["unpaid", "partial", "overdue"])
-
-    if (billsError) throw billsError
+    // 2) Open bills for balances (batched)
+    const openBills = await fetchAllPaged((from, to) =>
+      supabase
+        .from("bills")
+        .select("vendor_id, balance_due, status")
+        .in("status", ["unpaid", "partial", "overdue"])
+        .range(from, to)
+    )
 
     const thirtyDaysAgo = new Date()
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
-      const { data: paidBills, error: paidErr } = await supabase
+    // 3) Paid bills last 30 days (batched)
+    const paidBills = await fetchAllPaged((from, to) =>
+      supabase
         .from("bills")
         .select("total_amount, status, bill_date")
         .eq("status", "paid")
         .gte("bill_date", thirtyDaysAgo.toISOString().split("T")[0])
+        .range(from, to)
+    )
 
-      if (paidErr) throw paidErr
-
-      const paidTotal = (paidBills ?? []).reduce(
-        (sum, b) => sum + Number(b.total_amount ?? 0),
-        0
-      )
-
-      setTotalPaidLast30Days(paidTotal)
-
+    const paidTotal = paidBills.reduce((sum, b) => sum + Number(b.total_amount ?? 0), 0)
+    setTotalPaidLast30Days(paidTotal)
 
     const balanceByVendor = new Map<string, number>()
-    for (const b of openBills ?? []) {
+    for (const b of openBills) {
       const vid = b.vendor_id as string | null
       if (!vid) continue
       const current = balanceByVendor.get(vid) ?? 0
@@ -118,7 +117,7 @@ async function fetchSuppliers() {
     }
 
     // 3) Map to table rows (REAL DATA)
-    const mapped: Supplier[] = (supplierRows ?? []).map((s) => ({
+    const mapped: Supplier[] = supplierRows.map((s) => ({
       id: s.id,
       name: s.name,
       phone: s.phone ?? null,
@@ -379,9 +378,6 @@ async function fetchSuppliers() {
       setImporting(false)
     }
   }
-
-
-const [totalPaidLast30Days, setTotalPaidLast30Days] = useState(0)
 
   return (
     <div className="flex flex-col">

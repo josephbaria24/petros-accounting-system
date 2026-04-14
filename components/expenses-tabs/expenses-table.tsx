@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase-client";
+import { fetchAllPaged } from "@/lib/supabase-fetch-all";
 import { TransactionViewEditDialog } from "./transaction-view-edit-dialog";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -204,17 +205,13 @@ export default function ExpensesDashboard() {
 
       if (billsError) throw billsError;
 
-      // Fetch suppliers
-      const { data: suppliersData, error: suppliersError } = await supabase
-        .from("suppliers")
-        .select("*")
-        .order("name");
-
-      if (suppliersError) throw suppliersError;
+      const suppliersData = await fetchAllPaged((from, to) =>
+        supabase.from("suppliers").select("*").order("name").range(from, to)
+      );
 
       setExpenses(expensesData || []);
       setBills(billsData || []);
-      setSuppliers(suppliersData || []);
+      setSuppliers(suppliersData);
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {

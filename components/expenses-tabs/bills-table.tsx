@@ -4,6 +4,7 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase-client";
+import { fetchAllPaged } from "@/lib/supabase-fetch-all";
 import { TransactionViewEditDialog } from "./transaction-view-edit-dialog";
 
 import { Button } from "@/components/ui/button";
@@ -153,15 +154,12 @@ export default function BillsTable() {
 
       if (billsError) throw billsError;
 
-      const { data: suppliersData, error: suppliersError } = await supabase
-        .from("suppliers")
-        .select("*")
-        .order("name");
-
-      if (suppliersError) throw suppliersError;
+      const suppliersData = await fetchAllPaged((from, to) =>
+        supabase.from("suppliers").select("*").order("name").range(from, to)
+      );
 
       setBills(billsData || []);
-      setSuppliers(suppliersData || []);
+      setSuppliers(suppliersData);
     } catch (error: unknown) {
       const msg =
         error instanceof Error

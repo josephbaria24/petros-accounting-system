@@ -1,5 +1,6 @@
 //app\sales\invoices\create\page.tsx
 "use client";
+import { sileo } from "sileo";
 
 import { useState, useEffect } from "react";
 import CustomerSelector from "@/components/invoice/customer-selector";
@@ -554,7 +555,7 @@ useEffect(() => {
 
 const reviewAndSend = async () => {
   if (!customerId) {
-    alert("Please choose a customer");
+    sileo.warning({ title: "No customer selected", description: "Please choose a customer before saving." });
     return;
   }
 

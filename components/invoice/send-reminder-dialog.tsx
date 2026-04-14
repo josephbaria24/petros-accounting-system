@@ -1,5 +1,6 @@
 //components\invoice\send-reminder-dialog.tsx
 "use client";
+import { sileo } from "sileo";
 
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase-client";
@@ -22,6 +23,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  EMAIL_LOGO_CONTENT_ID,
+  emailLogoImgHtml,
+} from "@/lib/email-inline-logo";
 import { Loader2, Paperclip, Upload, X } from "lucide-react";
 import { Checkbox } from "@radix-ui/react-checkbox";
 
@@ -184,7 +189,7 @@ const generatePdfPreview = async () => {
       : 0;
 
     const defaultSubject = `Reminder: Invoice ${invoice.invoice_no} from Your Company`;
-    const defaultMessage = `Dear ${invoice.customer_name},<br><br>Just a reminder that we have not received a payment for this invoice yet. Let us know if you have any questions.<br><br>Thanks for your business!`;
+    const defaultMessage = `Dear ${invoice.customer_name},<br><br>We would like to kindly remind you that the payment for this invoice remains outstanding as of today. We would greatly appreciate your prompt attention to this matter.<br><br>If the payment has already been processed, please disregard this message. Otherwise, we would appreciate it if you could provide an update regarding the payment status or the expected date of settlement.<br><br>If you have any questions or require further clarification regarding this invoice, please feel free to contact us. We are happy to assist you.<br><br>Thank you for your attention and continued cooperation.`;
 
     setEmailData((prev) => ({
       ...prev,
@@ -218,11 +223,11 @@ const generatePdfPreview = async () => {
 
       if (error) throw error;
 
-      alert("Template updated successfully!");
+      sileo.success({ title: "Template updated", description: "Template saved successfully." });
       await loadTemplates();
     } catch (error) {
       console.error("Error updating template:", error);
-      alert("Error updating template. Please try again.");
+      sileo.error({ title: "Update failed", description: "Could not update template. Please try again." });
     }
   };
 
@@ -251,7 +256,7 @@ const generatePdfPreview = async () => {
         localStorage.removeItem(LAST_TEMPLATE_KEY);
       }
 
-      alert("Template deleted successfully!");
+      sileo.success({ title: "Template deleted" });
       
       // Reset to default template
       setSelectedTemplate("default");
@@ -261,7 +266,7 @@ const generatePdfPreview = async () => {
       await loadTemplates();
     } catch (error) {
       console.error("Error deleting template:", error);
-      alert("Error deleting template. Please try again.");
+      sileo.error({ title: "Delete failed", description: "Could not delete template. Please try again." });
     }
   };
 
@@ -311,22 +316,44 @@ const generatePdfPreview = async () => {
         // Regenerate PDF with new logo
         await generatePdfPreview();
         
-        alert("Logo uploaded successfully!");
+        sileo.success({ title: "Logo uploaded" });
       } else {
         throw new Error(data.error || "Upload failed");
       }
     } catch (error) {
       console.error("Error uploading logo:", error);
-      alert("Error uploading logo. Please try again.");
+      sileo.error({ title: "Upload failed", description: "Could not upload logo. Please try again." });
     } finally {
       setUploadingLogo(false);
     }
   };
 
+  /** Same pixels as preview: prefer data URL from file picker; else try to load saved URL to data URL for reliable CID embedding. */
+  const resolveLogoContentForEmail = async (): Promise<string> => {
+    if (logoPreview?.startsWith("data:")) return logoPreview;
+    if (logoPreview) return logoPreview;
+    if (logoUrl?.startsWith("http")) {
+      try {
+        const r = await fetch(logoUrl);
+        if (!r.ok) return logoUrl;
+        const blob = await r.blob();
+        return await new Promise<string>((resolve, reject) => {
+          const fr = new FileReader();
+          fr.onload = () => resolve(fr.result as string);
+          fr.onerror = () => resolve(logoUrl!);
+          fr.readAsDataURL(blob);
+        });
+      } catch {
+        return logoUrl;
+      }
+    }
+    return "";
+  };
+
   const generateHTMLMessage = async () => {
     const editorContent = editorRef.current?.innerHTML || "";
-    const inlineImages = [];
-    const attachments = [];
+    const inlineImages: { filename: string; content: string; cid: string }[] = [];
+    const attachments: { filename: string; content: string }[] = [];
     let pdfBase64 = "";
 
     // Get PDF for attachment
@@ -355,76 +382,94 @@ const generatePdfPreview = async () => {
       console.log("Could not attach PDF:", err);
     }
 
-    // Add logo as inline image - use base64 preview (works for both uploaded and local)
-    if (logoPreview) {
+    const logoContent = await resolveLogoContentForEmail();
+    if (logoContent) {
       inlineImages.push({
-        filename: logoFile?.name || "logo.png",
-        content: logoPreview,
-        cid: "companylogo",
+        filename: "inline-logo.png",
+        content: logoContent,
+        cid: EMAIL_LOGO_CONTENT_ID,
       });
     }
 
+    const issueDateFmt = invoice.issue_date
+      ? new Date(invoice.issue_date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+      : "N/A";
+    const dueDateFmt = invoice.due_date
+      ? new Date(invoice.due_date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+      : "N/A";
+    const amountFmt = `₱${invoice.balance_due.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    const logoHtml = logoContent
+      ? emailLogoImgHtml()
+      : `<div style="display:inline-block;padding:10px 20px;background:#f3f4f6;border-radius:6px;color:#9ca3af;font-size:13px;font-weight:500;letter-spacing:0.02em;">Your Company</div>`;
+
     return {
       html: `
-<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-  <div style="text-align: center; margin-bottom: 30px;">
-    ${
-      logoPreview || logoUrl
-        ? `<img src="cid:companylogo" alt="Company Logo" style="max-width: 150px; max-height: 80px;" />`
-        : '<div style="width: 150px; height: 80px; margin: 0 auto; background-color: #f0f0f0; border-radius: 5px; display: flex; align-items: center; justify-content: center; color: #999;">Company Logo</div>'
-    }
-  </div>
-  
-  <div style="font-size: 14px; line-height: 1.6; color: #333;">
-    ${editorContent}
-  </div>
-  
-  <div style="background-color: #f5f5f5; padding: 20px; border-radius: 5px; margin: 30px 0;">
-    <table style="width: 100%; border-collapse: collapse;">
-      <tr>
-        <td style="padding: 8px 0;"><strong>Invoice Number:</strong></td>
-        <td style="padding: 8px 0; text-align: right;">${invoice.invoice_no}</td>
-      </tr>
-      <tr>
-        <td style="padding: 8px 0;"><strong>Issue Date:</strong></td>
-        <td style="padding: 8px 0; text-align: right;">${
-          invoice.issue_date
-            ? new Date(invoice.issue_date).toLocaleDateString("en-US", {
-                month: "long",
-                day: "numeric",
-                year: "numeric",
-              })
-            : "N/A"
-        }</td>
-      </tr>
-      <tr>
-        <td style="padding: 8px 0;"><strong>Due Date:</strong></td>
-        <td style="padding: 8px 0; text-align: right;">${
-          invoice.due_date
-            ? new Date(invoice.due_date).toLocaleDateString("en-US", {
-                month: "long",
-                day: "numeric",
-                year: "numeric",
-              })
-            : "N/A"
-        }</td>
-      </tr>
-      <tr style="border-top: 2px solid #ddd;">
-        <td style="padding: 12px 0;"><strong>Amount Due:</strong></td>
-        <td style="padding: 12px 0; text-align: right; font-size: 20px; color: #d32f2f;"><strong>₱${invoice.balance_due.toLocaleString(
-          "en-PH",
-          { minimumFractionDigits: 2, maximumFractionDigits: 2 }
-        )}</strong></td>
-      </tr>
-    </table>
-  </div>
-  
-  <div style="text-align: center; margin-top: 30px;">
-    
-  </div>
-  
-  <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280; text-align: center;">
-    <p>Questions? Contact us at info@petrosphere.com.ph</p>
+<div style="background-color:#f4f6f8;padding:40px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+  <div style="max-width:580px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.12);border:1px solid #e2e8f0;">
+
+    <!-- Gold top bar (30%) -->
+    <div style="height:5px;background:linear-gradient(90deg,#c9a84c,#e8c96a,#c9a84c);"></div>
+
+    <!-- Navy logo header (60%) -->
+    <div style="padding:28px 40px 22px;text-align:left;background:#1a2f4e;">
+      ${logoHtml}
+      <p style="margin:14px 0 0;font-size:11px;color:#94a3b8;line-height:1.7;letter-spacing:0.01em;">
+        304, 3F, Trigold Business Park, National Highway<br/>
+        San Pedro, 5300, Puerto Princesa City
+      </p>
+    </div>
+
+    <!-- Body (10% white) -->
+    <div style="padding:32px 40px 0;background:#ffffff;">
+      <div style="display:inline-block;background:#c9a84c;color:#1a2f4e;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;padding:5px 12px;border-radius:4px;margin-bottom:20px;">
+        Payment Reminder
+      </div>
+      <div style="font-size:15px;line-height:1.75;color:#1e293b;">
+        ${editorContent}
+      </div>
+    </div>
+
+    <!-- Invoice details card -->
+    <div style="margin:28px 40px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+      <!-- Navy card header (60%) -->
+      <div style="padding:13px 20px;background:#1a2f4e;">
+        <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#c9a84c;">Invoice Details</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;background:#ffffff;">
+        <tr>
+          <td style="padding:13px 20px;font-size:13px;color:#64748b;font-weight:500;border-bottom:1px solid #f1f5f9;">Invoice Number</td>
+          <td style="padding:13px 20px;font-size:13px;color:#1a2f4e;font-weight:700;text-align:right;border-bottom:1px solid #f1f5f9;">${invoice.invoice_no}</td>
+        </tr>
+        <tr>
+          <td style="padding:13px 20px;font-size:13px;color:#64748b;font-weight:500;border-bottom:1px solid #f1f5f9;">Issue Date</td>
+          <td style="padding:13px 20px;font-size:13px;color:#1e293b;font-weight:500;text-align:right;border-bottom:1px solid #f1f5f9;">${issueDateFmt}</td>
+        </tr>
+        <tr>
+          <td style="padding:13px 20px;font-size:13px;color:#64748b;font-weight:500;">Due Date</td>
+          <td style="padding:13px 20px;font-size:13px;color:#1e293b;font-weight:500;text-align:right;">${dueDateFmt}</td>
+        </tr>
+      </table>
+      <!-- Gold amount-due row (30%) -->
+      <div style="padding:18px 20px;background:#fdf3d6;border-top:2px solid #c9a84c;">
+        <table style="width:100%;border-collapse:collapse;">
+          <tr>
+            <td style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#1a2f4e;">Total Amount Due</td>
+            <td style="text-align:right;font-size:26px;font-weight:800;color:#1a2f4e;letter-spacing:-0.5px;">${amountFmt}</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- Navy footer (60%) -->
+    <div style="padding:24px 40px 28px;text-align:center;background:#1a2f4e;">
+      <p style="margin:0 0 6px;font-size:12px;color:#94a3b8;line-height:1.6;">
+        Questions? Contact us at
+        <a href="mailto:info@petrosphere.com.ph" style="color:#c9a84c;text-decoration:none;font-weight:600;">info@petrosphere.com.ph</a>
+      </p>
+      <p style="margin:0;font-size:11px;color:#475569;">This is an automated payment reminder. Please disregard if already paid.</p>
+    </div>
+
   </div>
 </div>
       `.trim(),
@@ -435,12 +480,12 @@ const generatePdfPreview = async () => {
 
   const handleSend = async () => {
     if (!emailData.to || !emailData.subject) {
-      alert("Please fill in recipient and subject");
+      sileo.warning({ title: "Missing fields", description: "Please fill in recipient and subject." });
       return;
     }
 
     if (!editorRef.current?.textContent?.trim()) {
-      alert("Please enter a message");
+      sileo.warning({ title: "Empty message", description: "Please enter a message before sending." });
       return;
     }
 
@@ -462,7 +507,7 @@ const generatePdfPreview = async () => {
 
         if (templateError) {
           console.error("Error saving template:", templateError);
-          alert("Warning: Could not save template, but will still send email");
+          sileo.warning({ title: "Template not saved", description: "Could not save template, but the email will still be sent." });
         }
       }
 
@@ -496,84 +541,95 @@ const generatePdfPreview = async () => {
           sent_at: new Date().toISOString(),
         });
 
-        alert("Reminder sent successfully!");
+        sileo.success({ title: "Reminder sent", description: "The reminder email was sent successfully." });
         onOpenChange(false);
       } else {
         throw new Error(result.error || "Failed to send email");
       }
     } catch (error) {
       console.error("Error sending reminder:", error);
-      alert("Error sending reminder. Please try again.");
+      sileo.error({ title: "Send failed", description: "Could not send reminder. Please try again." });
     } finally {
       setSending(false);
     }
   };
 
-  // Generate email preview HTML
+  // Generate email preview HTML (uses real logo URL, not cid)
   const getEmailPreviewHtml = () => {
     const editorContent = editorRef.current?.innerHTML || "";
+    const issueDateFmt = invoice.issue_date
+      ? new Date(invoice.issue_date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+      : "N/A";
+    const dueDateFmt = invoice.due_date
+      ? new Date(invoice.due_date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+      : "N/A";
+    const amountFmt = `₱${invoice.balance_due.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const logoSrc = logoPreview || logoUrl;
+    const logoHtml = logoSrc
+      ? `<img src="${logoSrc}" alt="Company Logo" style="max-height:60px;max-width:160px;object-fit:contain;" />`
+      : `<div style="display:inline-block;padding:10px 20px;background:#f3f4f6;border-radius:6px;color:#9ca3af;font-size:13px;font-weight:500;letter-spacing:0.02em;">Your Company</div>`;
+
     return `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: white;">
-        <div style="text-align: center; margin-bottom: 30px;">
-          ${
-            logoPreview || logoUrl
-              ? `<img src="${logoPreview || logoUrl}" alt="Company Logo" style="max-width: 150px; max-height: 80px; object-fit: contain;" />`
-              : '<div style="width: 150px; height: 80px; margin: 0 auto; background-color: #f0f0f0; border-radius: 5px; display: flex; align-items: center; justify-content: center; color: #999;">Company Logo</div>'
-          }
-        </div>
-        
-        <div style="font-size: 14px; line-height: 1.6; color: #333;">
-          ${editorContent}
-        </div>
-        
-        <div style="background-color: #f5f5f5; padding: 20px; border-radius: 5px; margin: 30px 0;">
-          <table style="width: 100%; border-collapse: collapse;">
-            <tr>
-              <td style="padding: 8px 0;"><strong>Invoice Number:</strong></td>
-              <td style="padding: 8px 0; text-align: right;">${invoice.invoice_no}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0;"><strong>Issue Date:</strong></td>
-              <td style="padding: 8px 0; text-align: right;">${
-                invoice.issue_date
-                  ? new Date(invoice.issue_date).toLocaleDateString("en-US", {
-                      month: "long",
-                      day: "numeric",
-                      year: "numeric",
-                    })
-                  : "N/A"
-              }</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0;"><strong>Due Date:</strong></td>
-              <td style="padding: 8px 0; text-align: right;">${
-                invoice.due_date
-                  ? new Date(invoice.due_date).toLocaleDateString("en-US", {
-                      month: "long",
-                      day: "numeric",
-                      year: "numeric",
-                    })
-                  : "N/A"
-              }</td>
-            </tr>
-            <tr style="border-top: 2px solid #ddd;">
-              <td style="padding: 12px 0;"><strong>Amount Due:</strong></td>
-              <td style="padding: 12px 0; text-align: right; font-size: 20px; color: #d32f2f;"><strong>₱${invoice.balance_due.toLocaleString(
-                "en-PH",
-                { minimumFractionDigits: 2, maximumFractionDigits: 2 }
-              )}</strong></td>
-            </tr>
-          </table>
-        </div>
-        
-        <div style="text-align: center; margin-top: 30px;">
-          <a href="#" style="display: inline-block; padding: 12px 30px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 5px; font-weight: 500;">View Invoice</a>
-        </div>
-        
-        <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280; text-align: center;">
-          <p>Questions? Contact us at your-email@company.com</p>
-        </div>
+<div style="background-color:#f4f6f8;padding:40px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+  <div style="max-width:580px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.12);border:1px solid #e2e8f0;">
+
+    <div style="height:5px;background:linear-gradient(90deg,#c9a84c,#e8c96a,#c9a84c);"></div>
+
+    <div style="padding:28px 40px 22px;text-align:left;background:#1a2f4e;">
+      ${logoHtml}
+      <p style="margin:14px 0 0;font-size:11px;color:#94a3b8;line-height:1.7;letter-spacing:0.01em;">
+        304, 3F, Trigold Business Park, National Highway<br/>
+        San Pedro, 5300, Puerto Princesa City
+      </p>
+    </div>
+
+    <div style="padding:32px 40px 0;background:#ffffff;">
+      <div style="display:inline-block;background:#c9a84c;color:#1a2f4e;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;padding:5px 12px;border-radius:4px;margin-bottom:20px;">
+        Payment Reminder
       </div>
+      <div style="font-size:15px;line-height:1.75;color:#1e293b;">
+        ${editorContent}
+      </div>
+    </div>
+
+    <div style="margin:28px 40px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+      <div style="padding:13px 20px;background:#1a2f4e;">
+        <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#c9a84c;">Invoice Details</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;background:#ffffff;">
+        <tr>
+          <td style="padding:13px 20px;font-size:13px;color:#64748b;font-weight:500;border-bottom:1px solid #f1f5f9;">Invoice Number</td>
+          <td style="padding:13px 20px;font-size:13px;color:#1a2f4e;font-weight:700;text-align:right;border-bottom:1px solid #f1f5f9;">${invoice.invoice_no}</td>
+        </tr>
+        <tr>
+          <td style="padding:13px 20px;font-size:13px;color:#64748b;font-weight:500;border-bottom:1px solid #f1f5f9;">Issue Date</td>
+          <td style="padding:13px 20px;font-size:13px;color:#1e293b;font-weight:500;text-align:right;border-bottom:1px solid #f1f5f9;">${issueDateFmt}</td>
+        </tr>
+        <tr>
+          <td style="padding:13px 20px;font-size:13px;color:#64748b;font-weight:500;">Due Date</td>
+          <td style="padding:13px 20px;font-size:13px;color:#1e293b;font-weight:500;text-align:right;">${dueDateFmt}</td>
+        </tr>
+      </table>
+      <div style="padding:18px 20px;background:#fdf3d6;border-top:2px solid #c9a84c;">
+        <table style="width:100%;border-collapse:collapse;">
+          <tr>
+            <td style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#1a2f4e;">Total Amount Due</td>
+            <td style="text-align:right;font-size:26px;font-weight:800;color:#1a2f4e;letter-spacing:-0.5px;">${amountFmt}</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <div style="padding:24px 40px 28px;text-align:center;background:#1a2f4e;">
+      <p style="margin:0 0 6px;font-size:12px;color:#94a3b8;line-height:1.6;">
+        Questions? Contact us at
+        <a href="mailto:info@petrosphere.com.ph" style="color:#c9a84c;text-decoration:none;font-weight:600;">info@petrosphere.com.ph</a>
+      </p>
+      <p style="margin:0;font-size:11px;color:#475569;">This is an automated payment reminder. Please disregard if already paid.</p>
+    </div>
+
+  </div>
+</div>
     `;
   };
 

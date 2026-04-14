@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "sileo/styles.css";
 
 
 @custom-variant dark (&:is(.dark *));
@@ -161,4 +162,14 @@
     --input: #ffffff;
     --ring: #000000;
   }
+}
+
+/* Sileo: keep notifications above dialogs/sheets */
+[data-sileo-viewport] {
+  z-index: 100;
+}
+
+/* Sileo: center description text */
+[data-sileo-description] {
+  text-align: center !important;
 }

@@ -1,6 +1,7 @@
 //components\add-customer-modal.tsx
 
 "use client";
+import { sileo } from "sileo";
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase-client";
@@ -129,7 +130,7 @@ export default function AddCustomerModal({
     if (!file) return;
 
     if (file.size > 20 * 1024 * 1024) {
-      alert("Max 20MB file.");
+      sileo.warning({ title: "File too large", description: "Maximum file size is 20MB." });
       return;
     }
 
@@ -706,3 +707,4 @@ const handleSubmit = async () => {
     </Dialog>
   );
 }
+

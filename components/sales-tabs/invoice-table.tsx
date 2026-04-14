@@ -1,7 +1,8 @@
 //components\sales-tabs\invoice-table.tsx
 "use client"
+import { sileo } from "sileo"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { createClient } from "@/lib/supabase-client"
 import { Database } from "@/lib/supabase-types"
 import { ChevronDown, AlertCircle, Settings, ChevronUp, Plus } from "lucide-react"
@@ -20,7 +21,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import ReceivePaymentDialog from "../invoice/receive-payment-dialog"
 import SendReminderDialog from "../invoice/send-reminder-dialog"
 import BatchSendReminderDialog from "../invoice/batch-send-reminder-dialog"
@@ -53,6 +54,47 @@ type SelectedInvoiceForReminder = {
 
 type Customer = Database["public"]["Tables"]["customers"]["Row"]
 
+function passesDateFilter(inv: Invoice, dateFilter: string): boolean {
+  if (dateFilter === "all-time") return true
+  const raw = inv.issue_date
+  if (!raw) return true
+  const issueDate = new Date(raw)
+  if (Number.isNaN(issueDate.getTime())) return true
+  const now = new Date()
+  const msAgo = (days: number) => now.getTime() - days * 24 * 60 * 60 * 1000
+  switch (dateFilter) {
+    case "last-30-days":
+      return issueDate.getTime() >= msAgo(30)
+    case "last-90-days":
+      return issueDate.getTime() >= msAgo(90)
+    case "last-12-months":
+      return issueDate.getTime() >= msAgo(365)
+    case "this-year":
+      return issueDate.getFullYear() === now.getFullYear()
+    default:
+      return true
+  }
+}
+
+function matchesStatusFilter(inv: Invoice, statusFilter: string): boolean {
+  const bal = Number(inv.balance_due ?? 0)
+  const st = inv.status ?? ""
+  switch (statusFilter) {
+    case "all":
+      return true
+    case "unpaid":
+      return bal > 0.01 && ["sent", "partial", "overdue"].includes(st)
+    case "draft":
+    case "sent":
+    case "overdue":
+    case "paid":
+    case "partial":
+      return st === statusFilter
+    default:
+      return true
+  }
+}
+
 export default function InvoicesTable() {
   const supabase = createClient()
   const [data, setData] = useState<Invoice[]>([])
@@ -69,11 +111,12 @@ export default function InvoicesTable() {
   const [selectedInvoiceForReminder, setSelectedInvoiceForReminder] = useState<SelectedInvoiceForReminder | null>(null)
   const [deleting, setDeleting] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
 
 
  const handleBatchDelete = async () => {
     if (selectedRows.size === 0) {
-      alert("Please select at least one invoice")
+      sileo.warning({ title: "Nothing selected", description: "Please select at least one invoice." })
       return
     }
 
@@ -122,10 +165,10 @@ export default function InvoicesTable() {
 
       setSelectedRows(new Set())
       await loadInvoices()
-      alert("Deleted successfully.")
+      sileo.success({ title: "Deleted", description: "Selected invoices were deleted." })
     } catch (e: any) {
       console.error("Batch delete failed:", e)
-      alert(e?.message || "Failed to delete selected invoices.")
+      sileo.error({ title: "Delete failed", description: e?.message ?? "Failed to delete selected invoices." })
     } finally {
       setDeleting(false)
     }
@@ -181,24 +224,6 @@ export default function InvoicesTable() {
   const stats = calculateStats()
   const overduePercentage = stats.unpaid > 0 ? (stats.overdue / stats.unpaid) * 100 : 0
   const depositedPercentage = stats.paid > 0 ? (stats.deposited / stats.paid) * 100 : 100
-
-  const toggleSelectAll = () => {
-    if (selectedRows.size === data.length) {
-      setSelectedRows(new Set())
-    } else {
-      setSelectedRows(new Set(data.map(inv => inv.id)))
-    }
-  }
-
-  const toggleSelectRow = (id: string) => {
-    const newSelected = new Set(selectedRows)
-    if (newSelected.has(id)) {
-      newSelected.delete(id)
-    } else {
-      newSelected.add(id)
-    }
-    setSelectedRows(newSelected)
-  }
 
   const getStatusDisplay = (invoice: Invoice) => {
     const status = invoice.status
@@ -276,6 +301,48 @@ export default function InvoicesTable() {
     
     loadData()
   }, [])
+
+  useEffect(() => {
+    if (searchParams.get("invoiceFilter") === "unpaid") {
+      setStatusFilter("unpaid")
+    }
+  }, [searchParams])
+
+  const filteredInvoices = useMemo(
+    () =>
+      data.filter(
+        (inv) =>
+          passesDateFilter(inv, dateFilter) && matchesStatusFilter(inv, statusFilter)
+      ),
+    [data, dateFilter, statusFilter]
+  )
+
+  const handleStatusFilterChange = (v: string) => {
+    setStatusFilter(v)
+    if (searchParams.get("invoiceFilter") && v !== "unpaid") {
+      const p = new URLSearchParams(searchParams.toString())
+      p.delete("invoiceFilter")
+      router.replace(`/sales?${p.toString()}`, { scroll: false })
+    }
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedRows.size === filteredInvoices.length && filteredInvoices.length > 0) {
+      setSelectedRows(new Set())
+    } else {
+      setSelectedRows(new Set(filteredInvoices.map((inv) => inv.id)))
+    }
+  }
+
+  const toggleSelectRow = (id: string) => {
+    const newSelected = new Set(selectedRows)
+    if (newSelected.has(id)) {
+      newSelected.delete(id)
+    } else {
+      newSelected.add(id)
+    }
+    setSelectedRows(newSelected)
+  }
 
   if (loading) {
     return <div className="p-6">Loading invoices...</div>
@@ -387,7 +454,7 @@ export default function InvoicesTable() {
               <DropdownMenuItem
                 onClick={() => {
                   if (selectedRows.size === 0) {
-                    alert("Please select at least one invoice");
+                    sileo.warning({ title: "Nothing selected", description: "Please select at least one invoice." });
                     return;
                   }
                   setBatchReminderDialogOpen(true);
@@ -406,12 +473,13 @@ export default function InvoicesTable() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[120px]">
+          <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
+            <SelectTrigger className="w-[200px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All</SelectItem>
+              <SelectItem value="unpaid">Unpaid (open balance)</SelectItem>
               <SelectItem value="draft">Draft</SelectItem>
               <SelectItem value="sent">Sent</SelectItem>
               <SelectItem value="overdue">Overdue</SelectItem>
@@ -450,7 +518,10 @@ export default function InvoicesTable() {
             <tr>
               <th className="px-4 py-3 text-left w-12">
                 <Checkbox
-                  checked={selectedRows.size === data.length && data.length > 0}
+                  checked={
+                    filteredInvoices.length > 0 &&
+                    filteredInvoices.every((inv) => selectedRows.has(inv.id))
+                  }
                   onCheckedChange={toggleSelectAll}
                 />
               </th>
@@ -471,8 +542,8 @@ export default function InvoicesTable() {
           </thead>
 
           <tbody>
-            {data.length > 0 ? (
-              data.map((invoice) => {
+            {filteredInvoices.length > 0 ? (
+              filteredInvoices.map((invoice) => {
                 const statusDisplay = getStatusDisplay(invoice)
                 const issueDate = new Date(invoice.issue_date || "")
                 const balanceDue = invoice.balance_due || 0
@@ -590,7 +661,9 @@ export default function InvoicesTable() {
             ) : (
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
-                  No invoices found
+                  {data.length === 0
+                    ? "No invoices found"
+                    : "No invoices match your filters"}
                 </td>
               </tr>
             )}
@@ -647,7 +720,11 @@ export default function InvoicesTable() {
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <Button variant="ghost" size="sm" disabled>First</Button>
             <Button variant="ghost" size="sm" disabled>Previous</Button>
-            <span>1-{data.length} of {data.length}</span>
+            <span>
+              {filteredInvoices.length === 0
+                ? "0 of 0"
+                : `1-${filteredInvoices.length} of ${filteredInvoices.length}`}
+            </span>
             <Button variant="ghost" size="sm" disabled>Next</Button>
             <Button variant="ghost" size="sm" disabled>Last</Button>
           </div>

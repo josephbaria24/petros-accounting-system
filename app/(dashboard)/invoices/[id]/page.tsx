@@ -1,5 +1,6 @@
 //app\invoices\[id]\page.tsx
 "use client"
+import { sileo } from "sileo"
 
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
@@ -171,10 +172,10 @@ export default function InvoiceDetailPage() {
 
       // Update local state
       setAttachments(attachments.filter(a => a.id !== attachmentId))
-      alert("Attachment deleted successfully!")
+      sileo.success({ title: "Attachment deleted" })
     } catch (error) {
       console.error("Error deleting attachment:", error)
-      alert("Failed to delete attachment. Please try again.")
+      sileo.error({ title: "Delete failed", description: "Could not delete attachment. Please try again." })
     } finally {
       setDeletingAttachmentId(null)
     }
@@ -192,7 +193,7 @@ export default function InvoiceDetailPage() {
         // Validate file type
         const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'application/pdf']
         if (!validTypes.includes(file.type)) {
-          alert("Only image files (JPEG, PNG, GIF, WebP) and PDF files are allowed")
+          sileo.warning({ title: "Invalid file type", description: "Only image files (JPEG, PNG, GIF, WebP) and PDF files are allowed." })
           return
         }
 
@@ -241,10 +242,10 @@ export default function InvoiceDetailPage() {
             : a
         ))
 
-        alert("Attachment replaced successfully!")
+        sileo.success({ title: "Attachment replaced" })
       } catch (error) {
         console.error("Error replacing attachment:", error)
-        alert("Failed to replace attachment. Please try again.")
+        sileo.error({ title: "Replace failed", description: "Could not replace attachment. Please try again." })
       } finally {
         setReplacingAttachmentId(null)
       }
@@ -257,7 +258,7 @@ export default function InvoiceDetailPage() {
 
   const handleAddAttachment = async () => {
     if (!invoice?.customer_id) {
-      alert("No customer selected for this invoice")
+      sileo.warning({ title: "No customer", description: "Please select a customer for this invoice." })
       return
     }
 
@@ -273,14 +274,14 @@ export default function InvoiceDetailPage() {
       // Validate file type
       const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'application/pdf']
       if (!validTypes.includes(file.type)) {
-        alert("Only image files (JPEG, PNG, GIF, WebP) and PDF files are allowed")
+        sileo.warning({ title: "Invalid file type", description: "Only image files (JPEG, PNG, GIF, WebP) and PDF files are allowed." })
         return
       }
 
       // Validate file size (e.g., max 10MB)
       const maxSize = 10 * 1024 * 1024 // 10MB
       if (file.size > maxSize) {
-        alert("File size must be less than 10MB")
+        sileo.warning({ title: "File too large", description: "File size must be less than 10MB." })
         return
       }
 
@@ -318,10 +319,10 @@ export default function InvoiceDetailPage() {
 
         // Update local state
         setAttachments([data, ...attachments])
-        alert("Attachment added successfully!")
+        sileo.success({ title: "Attachment added" })
       } catch (error) {
         console.error("Error adding attachment:", error)
-        alert("Failed to add attachment. Please try again.")
+        sileo.error({ title: "Upload failed", description: "Could not add attachment. Please try again." })
       } finally {
         setUploadingAttachment(false)
       }
@@ -478,10 +479,10 @@ export default function InvoiceDetailPage() {
 
       setItems(updatedItems || [])
       setIsEditing(false)
-      alert("Invoice saved successfully!")
+      sileo.success({ title: "Invoice saved", description: "All changes have been saved." })
     } catch (error: any) {
       console.error("Error saving invoice:", error?.message || error)
-      alert("Error saving invoice. Please try again.")
+      sileo.error({ title: "Save failed", description: "Could not save invoice. Please try again." })
     }
   }
 

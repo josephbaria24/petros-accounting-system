@@ -1,4 +1,5 @@
 //components\invoice\manage-codes-modal.tsx
+import { sileo } from "sileo";
 import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -58,7 +59,7 @@ export default function ManageCodesModal({ isOpen, onClose, onUpdated }: ManageC
 
   const handleSubmit = async () => {
     if (!formCode.trim() || !formName.trim()) {
-      alert("Code and name are required");
+      sileo.warning({ title: "Required fields", description: "Code and name are required." });
       return;
     }
 
@@ -94,9 +95,9 @@ export default function ManageCodesModal({ isOpen, onClose, onUpdated }: ManageC
     } catch (error: any) {
       console.error("Error saving code:", error);
       if (error.code === "23505") {
-        alert("A code with this value already exists");
+        sileo.warning({ title: "Duplicate code", description: "A code with this value already exists." });
       } else {
-        alert("Failed to save code");
+        sileo.error({ title: "Save failed", description: "Could not save the code. Please try again." });
       }
     }
   };
@@ -123,7 +124,7 @@ export default function ManageCodesModal({ isOpen, onClose, onUpdated }: ManageC
       onUpdated?.();
     } catch (error) {
       console.error("Error deleting code:", error);
-      alert("Failed to delete code");
+      sileo.error({ title: "Delete failed", description: "Could not delete the code. Please try again." });
     }
   };
 

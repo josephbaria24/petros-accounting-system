@@ -1,4 +1,5 @@
 "use client";
+import { sileo } from "sileo";
 
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase-client";
@@ -24,6 +25,10 @@ import { Loader2, Upload, X, ChevronDown, ChevronUp } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  EMAIL_LOGO_CONTENT_ID,
+  emailLogoCidHref,
+} from "@/lib/email-inline-logo";
 
 type BatchInvoice = {
   id: string;
@@ -188,13 +193,13 @@ export default function BatchSendReminderDialog({
           LAST_LOGO_KEY,
           JSON.stringify({ preview: logoPreview, url: data.url })
         );
-        alert("Logo uploaded successfully!");
+        sileo.success({ title: "Logo uploaded" });
       } else {
         throw new Error(data.error || "Upload failed");
       }
     } catch (error) {
       console.error("Error uploading logo:", error);
-      alert("Error uploading logo. Please try again.");
+      sileo.error({ title: "Upload failed", description: "Could not upload logo. Please try again." });
     } finally {
       setUploadingLogo(false);
     }
@@ -217,78 +222,105 @@ export default function BatchSendReminderDialog({
       .replace(/\[Invoice Number\]/g, invoice.invoice_no);
   };
 
+  const buildEmailHtml = (inv: BatchInvoice, bodyHtml: string, logoSrc: string) => {
+    const issueDateFmt = inv.issue_date
+      ? new Date(inv.issue_date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+      : "N/A";
+    const dueDateFmt = inv.due_date
+      ? new Date(inv.due_date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+      : "N/A";
+    const amountFmt = `₱${inv.balance_due.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const logoHtml = logoSrc
+      ? `<img src="${logoSrc}" alt="Company Logo" width="160" height="60" style="max-height:60px;max-width:160px;height:auto;width:auto;display:block;border:0;object-fit:contain;" />`
+      : `<div style="display:inline-block;padding:10px 20px;background:#f3f4f6;border-radius:6px;color:#9ca3af;font-size:13px;font-weight:500;letter-spacing:0.02em;">Your Company</div>`;
+
+    return `
+<div style="background-color:#f4f6f8;padding:40px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+  <div style="max-width:580px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.12);border:1px solid #e2e8f0;">
+    <div style="height:5px;background:linear-gradient(90deg,#c9a84c,#e8c96a,#c9a84c);"></div>
+    <div style="padding:28px 40px 22px;text-align:left;background:#1a2f4e;">
+      ${logoHtml}
+      <p style="margin:14px 0 0;font-size:11px;color:#94a3b8;line-height:1.7;letter-spacing:0.01em;">
+        304, 3F, Trigold Business Park, National Highway<br/>
+        San Pedro, 5300, Puerto Princesa City
+      </p>
+    </div>
+    <div style="padding:32px 40px 0;background:#ffffff;">
+      <div style="display:inline-block;background:#c9a84c;color:#1a2f4e;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;padding:5px 12px;border-radius:4px;margin-bottom:20px;">
+        Payment Reminder
+      </div>
+      <div style="font-size:15px;line-height:1.75;color:#1e293b;">
+        ${bodyHtml}
+      </div>
+    </div>
+    <div style="margin:28px 40px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+      <div style="padding:13px 20px;background:#1a2f4e;">
+        <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#c9a84c;">Invoice Details</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;background:#ffffff;">
+        <tr>
+          <td style="padding:13px 20px;font-size:13px;color:#64748b;font-weight:500;border-bottom:1px solid #f1f5f9;">Invoice Number</td>
+          <td style="padding:13px 20px;font-size:13px;color:#1a2f4e;font-weight:700;text-align:right;border-bottom:1px solid #f1f5f9;">${inv.invoice_no}</td>
+        </tr>
+        <tr>
+          <td style="padding:13px 20px;font-size:13px;color:#64748b;font-weight:500;border-bottom:1px solid #f1f5f9;">Issue Date</td>
+          <td style="padding:13px 20px;font-size:13px;color:#1e293b;font-weight:500;text-align:right;border-bottom:1px solid #f1f5f9;">${issueDateFmt}</td>
+        </tr>
+        <tr>
+          <td style="padding:13px 20px;font-size:13px;color:#64748b;font-weight:500;">Due Date</td>
+          <td style="padding:13px 20px;font-size:13px;color:#1e293b;font-weight:500;text-align:right;">${dueDateFmt}</td>
+        </tr>
+      </table>
+      <div style="padding:18px 20px;background:#fdf3d6;border-top:2px solid #c9a84c;">
+        <table style="width:100%;border-collapse:collapse;">
+          <tr>
+            <td style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#1a2f4e;">Total Amount Due</td>
+            <td style="text-align:right;font-size:26px;font-weight:800;color:#1a2f4e;letter-spacing:-0.5px;">${amountFmt}</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+    <div style="padding:24px 40px 28px;text-align:center;background:#1a2f4e;">
+      <p style="margin:0 0 6px;font-size:12px;color:#94a3b8;line-height:1.6;">
+        Questions? Contact us at
+        <a href="mailto:info@petrosphere.com.ph" style="color:#c9a84c;text-decoration:none;font-weight:600;">info@petrosphere.com.ph</a>
+      </p>
+      <p style="margin:0;font-size:11px;color:#475569;">This is an automated payment reminder. Please disregard if already paid.</p>
+    </div>
+  </div>
+</div>`;
+  };
+
   const getEmailPreviewHtml = (invoice: BatchInvoice) => {
     const personalizedMessage = getPersonalizedMessage(invoice);
-    
-    return `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: white;">
-        <div style="text-align: center; margin-bottom: 30px;">
-          ${
-            logoPreview || logoUrl
-              ? `<img src="${logoPreview || logoUrl}" alt="Company Logo" style="max-width: 150px; max-height: 80px; object-fit: contain;" />`
-              : '<div style="width: 150px; height: 80px; margin: 0 auto; background-color: #f0f0f0; border-radius: 5px; display: flex; align-items: center; justify-content: center; color: #999;">Company Logo</div>'
-          }
-        </div>
-        
-        <div style="font-size: 14px; line-height: 1.6; color: #333;">
-          ${personalizedMessage}
-        </div>
-        
-        <div style="background-color: #f5f5f5; padding: 20px; border-radius: 5px; margin: 30px 0;">
-          <table style="width: 100%; border-collapse: collapse;">
-            <tr>
-              <td style="padding: 8px 0;"><strong>Invoice Number:</strong></td>
-              <td style="padding: 8px 0; text-align: right;">${invoice.invoice_no}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0;"><strong>Issue Date:</strong></td>
-              <td style="padding: 8px 0; text-align: right;">${
-                invoice.issue_date
-                  ? new Date(invoice.issue_date).toLocaleDateString("en-US", {
-                      month: "long",
-                      day: "numeric",
-                      year: "numeric",
-                    })
-                  : "N/A"
-              }</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0;"><strong>Due Date:</strong></td>
-              <td style="padding: 8px 0; text-align: right;">${
-                invoice.due_date
-                  ? new Date(invoice.due_date).toLocaleDateString("en-US", {
-                      month: "long",
-                      day: "numeric",
-                      year: "numeric",
-                    })
-                  : "N/A"
-              }</td>
-            </tr>
-            <tr style="border-top: 2px solid #ddd;">
-              <td style="padding: 12px 0;"><strong>Amount Due:</strong></td>
-              <td style="padding: 12px 0; text-align: right; font-size: 20px; color: #d32f2f;"><strong>₱${invoice.balance_due.toLocaleString(
-                "en-PH",
-                { minimumFractionDigits: 2, maximumFractionDigits: 2 }
-              )}</strong></td>
-            </tr>
-          </table>
-        </div>
-        
-        <div style="text-align: center; margin-top: 30px;">
-          <a href="#" style="display: inline-block; padding: 12px 30px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 5px; font-weight: 500;">View Invoice</a>
-        </div>
-        
-        <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280; text-align: center;">
-          <p>Questions? Contact us at your-email@company.com</p>
-        </div>
-      </div>
-    `;
+    return buildEmailHtml(invoice, personalizedMessage, logoPreview || logoUrl || "");
+  };
+
+  const resolveLogoContentForEmail = async (): Promise<string> => {
+    if (logoPreview?.startsWith("data:")) return logoPreview;
+    if (logoPreview) return logoPreview;
+    if (logoUrl?.startsWith("http")) {
+      try {
+        const r = await fetch(logoUrl);
+        if (!r.ok) return logoUrl;
+        const blob = await r.blob();
+        return await new Promise<string>((resolve, reject) => {
+          const fr = new FileReader();
+          fr.onload = () => resolve(fr.result as string);
+          fr.onerror = () => resolve(logoUrl!);
+          fr.readAsDataURL(blob);
+        });
+      } catch {
+        return logoUrl;
+      }
+    }
+    return "";
   };
 
   const generateHTMLMessageForInvoice = async (invoice: BatchInvoice) => {
     const personalizedMessage = getPersonalizedMessage(invoice);
-    const inlineImages = [];
-    const attachments = [];
+    const inlineImages: { filename: string; content: string; cid: string }[] = [];
+    const attachments: { filename: string; content: string }[] = [];
 
     // Get PDF for attachment
     try {
@@ -318,79 +350,19 @@ export default function BatchSendReminderDialog({
       console.log("Could not attach PDF for invoice:", invoice.invoice_no, err);
     }
 
-    // Add logo as inline image
-    if (logoPreview) {
+    const logoContent = await resolveLogoContentForEmail();
+    if (logoContent) {
       inlineImages.push({
-        filename: logoFile?.name || "logo.png",
-        content: logoPreview,
-        cid: "companylogo",
+        filename: "inline-logo.png",
+        content: logoContent,
+        cid: EMAIL_LOGO_CONTENT_ID,
       });
     }
 
+    const cidLogoHtml = logoContent ? emailLogoCidHref : "";
+
     return {
-      html: `
-<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-  <div style="text-align: center; margin-bottom: 30px;">
-    ${
-      logoPreview || logoUrl
-        ? `<img src="cid:companylogo" alt="Company Logo" style="max-width: 150px; max-height: 80px;" />`
-        : '<div style="width: 150px; height: 80px; margin: 0 auto; background-color: #f0f0f0; border-radius: 5px; display: flex; align-items: center; justify-content: center; color: #999;">Company Logo</div>'
-    }
-  </div>
-  
-  <div style="font-size: 14px; line-height: 1.6; color: #333;">
-    ${personalizedMessage}
-  </div>
-  
-  <div style="background-color: #f5f5f5; padding: 20px; border-radius: 5px; margin: 30px 0;">
-    <table style="width: 100%; border-collapse: collapse;">
-      <tr>
-        <td style="padding: 8px 0;"><strong>Invoice Number:</strong></td>
-        <td style="padding: 8px 0; text-align: right;">${invoice.invoice_no}</td>
-      </tr>
-      <tr>
-        <td style="padding: 8px 0;"><strong>Issue Date:</strong></td>
-        <td style="padding: 8px 0; text-align: right;">${
-          invoice.issue_date
-            ? new Date(invoice.issue_date).toLocaleDateString("en-US", {
-                month: "long",
-                day: "numeric",
-                year: "numeric",
-              })
-            : "N/A"
-        }</td>
-      </tr>
-      <tr>
-        <td style="padding: 8px 0;"><strong>Due Date:</strong></td>
-        <td style="padding: 8px 0; text-align: right;">${
-          invoice.due_date
-            ? new Date(invoice.due_date).toLocaleDateString("en-US", {
-                month: "long",
-                day: "numeric",
-                year: "numeric",
-              })
-            : "N/A"
-        }</td>
-      </tr>
-      <tr style="border-top: 2px solid #ddd;">
-        <td style="padding: 12px 0;"><strong>Amount Due:</strong></td>
-        <td style="padding: 12px 0; text-align: right; font-size: 20px; color: #d32f2f;"><strong>₱${invoice.balance_due.toLocaleString(
-          "en-PH",
-          { minimumFractionDigits: 2, maximumFractionDigits: 2 }
-        )}</strong></td>
-      </tr>
-    </table>
-  </div>
-  
-  <div style="text-align: center; margin-top: 30px;">
-    <a href="#" style="display: inline-block; padding: 12px 30px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 5px; font-weight: 500;">View Invoice</a>
-  </div>
-  
-  <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280; text-align: center;">
-    <p>Questions? Contact us at your-email@company.com</p>
-  </div>
-</div>
-      `.trim(),
+      html: buildEmailHtml(invoice, personalizedMessage, cidLogoHtml).trim(),
       inlineImages,
       attachments,
     };
@@ -398,12 +370,12 @@ export default function BatchSendReminderDialog({
 
   const handleSendAll = async () => {
     if (!emailData.subject) {
-      alert("Please fill in the subject");
+      sileo.warning({ title: "Missing subject", description: "Please fill in the email subject." });
       return;
     }
 
     if (!editorRef.current?.textContent?.trim()) {
-      alert("Please enter a message");
+      sileo.warning({ title: "Empty message", description: "Please enter a message before sending." });
       return;
     }
 
@@ -471,12 +443,12 @@ export default function BatchSendReminderDialog({
         localStorage.setItem(LAST_TEMPLATE_KEY, selectedTemplate);
       }
 
-      alert(`Batch send complete!\nSuccess: ${successCount}\nFailed: ${failCount}`);
+      sileo.success({ title: "Batch send complete", description: `Sent: ${successCount} | Failed: ${failCount}` });
       onRemindersSent();
       onOpenChange(false);
     } catch (error) {
       console.error("Error sending batch reminders:", error);
-      alert("Error sending reminders. Please try again.");
+      sileo.error({ title: "Send failed", description: "Could not send reminders. Please try again." });
     } finally {
       setSending(false);
     }

@@ -4,15 +4,11 @@ import {
   ChartArea,
   DollarSign,
   Receipt, 
-  Building2, 
-  BookOpen, 
-  ListTree, 
   BarChart3, 
   Settings, 
-  CreditCardIcon,
-  ClipboardEditIcon,
   UserCog,
-  ChevronRight
+  ChevronRight,
+  Users,
 } from "lucide-react"
 
 import {
@@ -45,6 +41,8 @@ type MenuItem = {
   url: string
   icon: LucideIcon
   submenu?: SubMenuItem[]
+  /** When set, active if pathname matches or starts with any of these (e.g. /customers and /contacts). */
+  activePathPrefixes?: string[]
 }
 
 type MenuGroup = {
@@ -73,6 +71,23 @@ const groupedMenu: MenuGroup[] = [
         ]
       }
     ]
+  },
+
+  {
+    label: "Customers & leads",
+    items: [
+      {
+        title: "Customers & leads",
+        url: "/customers-leads",
+        icon: Users,
+        activePathPrefixes: ["/customers-leads", "/customers", "/contacts"],
+        submenu: [
+          { title: "Overview", url: "/customers-leads" },
+          { title: "Customers", url: "/customers-leads?tab=customers" },
+          { title: "Leads", url: "/customers-leads?tab=leads" },
+        ],
+      },
+    ],
   },
 
   {
@@ -185,7 +200,17 @@ export function AppSidebar() {
                       onMouseEnter={() => item.submenu && handleMouseEnter(item.title)}
                       onMouseLeave={handleMouseLeave}
                     >
-                      <SidebarMenuButton asChild isActive={pathname === item.url || pathname.startsWith(item.url)}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={
+                          item.activePathPrefixes?.length
+                            ? item.activePathPrefixes.some(
+                                (p) => pathname === p || pathname.startsWith(p + "/")
+                              )
+                            : pathname === item.url ||
+                              (item.url !== "/" && pathname.startsWith(item.url))
+                        }
+                      >
                         <Link href={item.url}>
                           <item.icon className="h-4 w-4" />
                           <span>{item.title}</span>

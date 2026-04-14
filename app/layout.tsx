@@ -2,8 +2,7 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Geist } from "next/font/google"
 import "./globals.css"
-import { Toaster } from "@/components/ui/toaster"
-import { Toaster as Sonner } from "@/components/ui/sonner"
+import { SileoToaster } from "@/components/sileo-toaster"
 import { ThemeProvider } from "@/components/theme-provider"
 
 const geist = Geist({ subsets: ["latin"] })
@@ -26,9 +25,8 @@ export default function RootLayout({
       <body className={geist.className}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           {children}
+          <SileoToaster />
         </ThemeProvider>
-        <Toaster />
-        <Sonner />
       </body>
     </html>
   )

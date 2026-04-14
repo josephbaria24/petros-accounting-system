@@ -64,32 +64,64 @@ export async function POST(req: Request) {
       attachments: [],
     };
 
-    // Add inline images (embedded with cid:)
+    // Separate inline (CID) images from regular file attachments.
+    // Inline images go into a multipart/related section so email clients
+    // render them where src="cid:xxx" appears in the HTML body.
+    const inlineAttachments: any[] = [];
+    const fileAttachments: any[] = [];
+
     if (inlineImages && Array.isArray(inlineImages) && inlineImages.length > 0) {
-      inlineImages.forEach((img: any) => {
-        const base64Content = img.content.includes(",")
-          ? img.content.split(",")[1]
-          : img.content;
-        mailOptions.attachments.push({
-          filename: img.filename,
-          content: Buffer.from(base64Content, "base64"),
-          cid: img.cid,
-        });
-      });
+      for (const img of inlineImages) {
+        let imgBuffer: Buffer | null = null;
+        let ext = "png";
+
+        if (typeof img.content === "string" && (img.content.startsWith("http://") || img.content.startsWith("https://"))) {
+          try {
+            const imgResp = await fetch(img.content);
+            if (imgResp.ok) {
+              const ct = imgResp.headers.get("content-type") || "";
+              if (ct.includes("jpeg") || ct.includes("jpg")) ext = "jpg";
+              else if (ct.includes("gif")) ext = "gif";
+              else if (ct.includes("webp")) ext = "webp";
+              imgBuffer = Buffer.from(await imgResp.arrayBuffer());
+            }
+          } catch (e) {
+            console.error("[send-email] inline image fetch failed:", e);
+          }
+        } else if (typeof img.content === "string") {
+          const mimeMatch = img.content.match(/^data:image\/([^;]+);/);
+          if (mimeMatch) ext = mimeMatch[1] === "jpeg" ? "jpg" : mimeMatch[1];
+          const base64Content = img.content.includes(",")
+            ? img.content.split(",")[1]
+            : img.content;
+          imgBuffer = Buffer.from(base64Content, "base64");
+        }
+
+        if (imgBuffer && imgBuffer.length > 0) {
+          // Safe filename only — cid may contain "@" (Outlook-style); never use cid as filename.
+          inlineAttachments.push({
+            filename: `inline-logo.${ext}`,
+            content: imgBuffer,
+            cid: img.cid,
+          });
+        }
+      }
     }
 
-    // Add file attachments (PDF, etc)
     if (attachments && Array.isArray(attachments) && attachments.length > 0) {
       attachments.forEach((attachment: any) => {
         const base64Content = attachment.content.includes(",")
           ? attachment.content.split(",")[1]
           : attachment.content;
-        mailOptions.attachments.push({
+        fileAttachments.push({
           filename: attachment.filename,
           content: Buffer.from(base64Content, "base64"),
         });
       });
     }
+
+    // Inline (CID) parts first so multipart/related binds correctly to the HTML body.
+    mailOptions.attachments = [...inlineAttachments, ...fileAttachments];
 
     await transporter.sendMail(mailOptions);
 

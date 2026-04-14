@@ -1,5 +1,6 @@
 //components\invoice\receive-payment-dialog.tsx
 "use client";
+import { sileo } from "sileo";
 
 import { useState, useEffect, useRef } from "react";
 import { X, Settings, ArrowBigDownDash, MessageCircle, DollarSign, Upload, Paperclip } from "lucide-react";
@@ -108,7 +109,7 @@ export default function ReceivePaymentDialog({
         
         // Check file size (20MB limit)
         if (file.size > 20 * 1024 * 1024) {
-          alert(`File ${file.name} exceeds 20MB limit`);
+          sileo.warning({ title: "File too large", description: `${file.name} exceeds the 20MB limit.` });
           continue;
         }
 
@@ -138,7 +139,7 @@ export default function ReceivePaymentDialog({
       }
     } catch (error) {
       console.error("Error uploading attachment:", error);
-      alert("Error uploading attachment. Please try again.");
+      sileo.error({ title: "Upload failed", description: "Could not upload attachment. Please try again." });
     } finally {
       setUploadingAttachment(false);
       if (fileInputRef.current) {
@@ -153,18 +154,18 @@ export default function ReceivePaymentDialog({
 
 const handleSavePayment = async (closeAfterSave: boolean = false) => {
   if (!paymentMethod) {
-    alert("Please select a payment method");
+    sileo.warning({ title: "Missing payment method", description: "Please select a payment method." });
     return;
   }
 
   const amount = parseFloat(amountReceived);
   if (isNaN(amount) || amount <= 0) {
-    alert("Please enter a valid payment amount");
+    sileo.warning({ title: "Invalid amount", description: "Please enter a valid payment amount." });
     return;
   }
 
   if (amount > invoice.balance_due) {
-    alert("Payment amount cannot exceed the balance due");
+    sileo.warning({ title: "Amount too high", description: "Payment amount cannot exceed the balance due." });
     return;
   }
 
@@ -216,7 +217,7 @@ const handleSavePayment = async (closeAfterSave: boolean = false) => {
 
     console.log("Payment recorded successfully! Trigger updated the invoice.");
 
-    alert("Payment recorded successfully!");
+    sileo.success({ title: "Payment recorded", description: "The payment has been recorded successfully." });
 
     if (onPaymentRecorded) {
       onPaymentRecorded();
@@ -234,7 +235,7 @@ const handleSavePayment = async (closeAfterSave: boolean = false) => {
     }
   } catch (error) {
     console.error("Error recording payment:", error);
-    alert("Error recording payment. Please try again.");
+    sileo.error({ title: "Payment failed", description: "Could not record payment. Please try again." });
   } finally {
     setSaving(false);
   }
