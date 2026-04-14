@@ -8,6 +8,9 @@ import { Database } from "@/lib/supabase-types"
 import { ChevronDown, AlertCircle, Settings, ChevronUp, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Separator } from "@/components/ui/separator"
+import { cn } from "@/lib/utils"
 import {
   Select,
   SelectContent,
@@ -351,94 +354,131 @@ export default function InvoicesTable() {
   return (
     <div className="space-y-4">
       {/* Summary Stats */}
-      <div className="border rounded-lg p-6 bg-card">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">Invoices</h2>
+      <Card className="border-border/80 shadow-sm">
+        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 border-b border-border/60 pb-4 space-y-0">
+          <div>
+            <CardTitle className="text-base">Invoices</CardTitle>
+            <CardDescription>Open balances and recent collections</CardDescription>
+          </div>
           <Button
             variant="ghost"
-            size="sm"
+            size="icon"
+            className="h-9 w-9 text-muted-foreground hover:text-foreground"
             onClick={() => setShowStats(!showStats)}
+            aria-label={showStats ? "Collapse invoice stats" : "Expand invoice stats"}
           >
             {showStats ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
           </Button>
-        </div>
+        </CardHeader>
 
         {showStats && (
-          <div className="grid grid-cols-2 gap-8">
-            <div className="space-y-3">
-              <div className="flex justify-between items-start">
-                <div>
-                  <div className="text-2xl font-semibold">
-                    ₱{stats.unpaid.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 
-                    <span className="text-base font-normal text-red-600 dark:text-red-400 ml-2">Unpaid</span>
+          <CardContent className="pt-6">
+            <div className="grid gap-6 lg:grid-cols-2">
+              {/* Unpaid */}
+              <div className="rounded-xl border border-border/80 bg-muted/20 p-1">
+                <div className="rounded-lg bg-card p-5 shadow-sm">
+                  <div className="flex flex-wrap items-baseline justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Unpaid</p>
+                      <p className="mt-2 text-2xl font-semibold tabular-nums tracking-tight">
+                        ₱{stats.unpaid.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">Last 365 days</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground">Overdue share</p>
+                      <p className="mt-1 text-sm font-semibold tabular-nums">{Math.round(overduePercentage)}%</p>
+                    </div>
                   </div>
-                  <div className="text-sm text-gray-500">Last 365 days</div>
+
+                  <Separator className="my-4 bg-border/70" />
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>
+                        Overdue{" "}
+                        <span className="tabular-nums">
+                          ₱{stats.overdue.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                        </span>
+                      </span>
+                      <span>
+                        Not due yet{" "}
+                        <span className="tabular-nums">
+                          ₱{stats.notDueYet.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                        </span>
+                      </span>
+                    </div>
+
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                      <div className="flex h-full w-full">
+                        <div
+                          className={cn("h-full bg-amber-500")}
+                          style={{ width: `${overduePercentage}%` }}
+                        />
+                        <div
+                          className="h-full bg-muted-foreground/25"
+                          style={{ width: `${100 - overduePercentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600 dark:text-gray-300">
-                    ₱{stats.overdue.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                  </span>
-                  <span className="text-gray-600 dark:text-gray-300">
-                    ₱{stats.notDueYet.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-gray-700 dark:text-gray-300">Overdue</span>
-                  <span className="text-gray-700 dark:text-gray-300">Not due yet</span>
-                </div>
-                <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                  <div className="flex h-full">
-                    <div 
-                      className="bg-orange-500" 
-                      style={{ width: `${overduePercentage}%` }}
-                    />
-                    <div 
-                      className="bg-gray-300" 
-                      style={{ width: `${100 - overduePercentage}%` }}
-                    />
+              {/* Paid */}
+              <div className="rounded-xl border border-border/80 bg-muted/20 p-1">
+                <div className="rounded-lg bg-card p-5 shadow-sm">
+                  <div className="flex flex-wrap items-baseline justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Paid</p>
+                      <p className="mt-2 text-2xl font-semibold tabular-nums tracking-tight">
+                        ₱{stats.paid.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">Last 30 days</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground">Deposited</p>
+                      <p className="mt-1 text-sm font-semibold tabular-nums">{Math.round(depositedPercentage)}%</p>
+                    </div>
+                  </div>
+
+                  <Separator className="my-4 bg-border/70" />
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>
+                        Not deposited{" "}
+                        <span className="tabular-nums">
+                          ₱{stats.notDeposited.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                        </span>
+                      </span>
+                      <span>
+                        Deposited{" "}
+                        <span className="tabular-nums">
+                          ₱{stats.deposited.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                        </span>
+                      </span>
+                    </div>
+
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                      <div className="flex h-full w-full">
+                        <div
+                          className="h-full bg-emerald-600"
+                          style={{ width: `${depositedPercentage}%` }}
+                        />
+                        <div
+                          className="h-full bg-emerald-600/15"
+                          style={{ width: `${100 - depositedPercentage}%` }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-
-            <div className="space-y-3">
-              <div className="flex justify-between items-start">
-                <div>
-                  <div className="text-2xl font-semibold">
-                    ₱{stats.paid.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 
-                    <span className="text-base font-normal text-green-600 ml-2">Paid</span>
-                  </div>
-                  <div className="text-sm text-gray-500">Last 30 days</div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">
-                    ₱{stats.notDeposited.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                  </span>
-                  <span className="text-gray-600">
-                    ₱{stats.deposited.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-gray-700">Not deposited</span>
-                  <span className="text-gray-700">Deposited</span>
-                </div>
-                <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                  <div 
-                    className="bg-green-600 h-full" 
-                    style={{ width: `${depositedPercentage}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
+          </CardContent>
         )}
-      </div>
+      </Card>
 
       {/* Filters and Actions */}
       <div className="flex items-center justify-between gap-4">
@@ -579,15 +619,15 @@ export default function InvoicesTable() {
 
                       <div className="flex items-center gap-2">
                         {invoice.status === "paid" && balanceDue <= 0.01 ? (
-                          <svg className="h-4 w-4 text-green-600 flex-shrink-0" fill="none" strokeWidth="2" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="h-4 w-4 text-green-600 shrink-0" fill="none" strokeWidth="2" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                         ) : invoice.status === "partial" ? (
-                          <svg className="h-4 w-4 text-blue-600 flex-shrink-0" fill="none" strokeWidth="2" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="h-4 w-4 text-blue-600 shrink-0" fill="none" strokeWidth="2" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                         ) : (
-                          <AlertCircle className="h-4 w-4 text-orange-500 flex-shrink-0" />
+                          <AlertCircle className="h-4 w-4 text-orange-500 shrink-0" />
                         )}
                         <div>
                           <div className="text-sm">{statusDisplay.text}</div>

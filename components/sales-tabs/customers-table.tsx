@@ -3,7 +3,10 @@
 import { sileo } from "sileo"
 
 import { useState } from 'react';
-import { Plus, Search, ChevronDown, Upload, X, File, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Search, ChevronDown, Upload, X, File, ChevronLeft, ChevronRight, Users } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -652,31 +655,47 @@ export default function CustomersTable() {
     return pages;
   };
 
-  return (
-    <div className="min-h-screen bg-background">
-      <div className="p-6 max-w-7xl mx-auto">
-        {/* Header with Search and New Customer Button */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setCurrentPage(1); // Reset to first page on search
-              }}
-              className="pl-10 bg-card"
-            />
-          </div>
+  const currency = (value: number) =>
+    `₱${Number(value || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-                New customer
-                <ChevronDown className="ml-2 h-4 w-4" />
-              </Button>
-            </DialogTrigger>
+  return (
+    <div className="space-y-4">
+      <Card className="border-border/80 shadow-sm">
+        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 border-b border-border/60 pb-4 space-y-0">
+          <div>
+            <CardTitle className="text-base">Customers</CardTitle>
+            <CardDescription>
+              {totalCount ? `${totalCount.toLocaleString()} customer${totalCount === 1 ? "" : "s"}` : "No customers yet"}
+            </CardDescription>
+          </div>
+          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 text-primary">
+            <Users className="h-4 w-4" />
+          </div>
+        </CardHeader>
+        <CardContent className="pt-6">
+          {/* Toolbar */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative w-full max-w-md">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search customers..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="pl-10"
+              />
+            </div>
+
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-emerald-600 hover:bg-emerald-700">
+                  <Plus className="mr-2 h-4 w-4" />
+                  New customer
+                  <ChevronDown className="ml-2 h-4 w-4" />
+                </Button>
+              </DialogTrigger>
             <DialogContent
               showCloseButton={false}
               className="max-w-3xl p-0 gap-0 overflow-hidden flex flex-col max-h-[90vh]"
@@ -1066,57 +1085,85 @@ export default function CustomersTable() {
               </div>
             </DialogContent>
           </Dialog>
-        </div>
-
-        {/* Batch Actions Bar */}
-        {selectedCustomers.length > 0 && (
-          <div className="bg-[#3f3f46] text-white px-4 py-3 rounded-lg mb-4 flex items-center justify-between">
-            <span className="font-medium">{selectedCustomers.length} customer{selectedCustomers.length > 1 ? 's' : ''} selected</span>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="secondary" size="sm">
-                  Batch actions
-                  <ChevronDown className="ml-2 h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleBatchAction('create-statements')}>Create statements</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleBatchAction('email')}>Email</DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => handleBatchAction('make-inactive')}>Make inactive</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
-        )}
 
-        {/* Table */}
-        <div className="border border-border rounded-lg overflow-hidden bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/50 hover:bg-muted/50">
-                <TableHead className="w-12">
-                  <Checkbox
-                    checked={selectedCustomers.length === customers.length && customers.length > 0}
-                    onCheckedChange={toggleSelectAll}
-                  />
-                </TableHead>
-                <TableHead className="font-semibold">NAME ↑</TableHead>
-                <TableHead className="font-semibold">COMPANY NAME</TableHead>
-                <TableHead className="font-semibold">PHONE</TableHead>
-                <TableHead className="font-semibold">CURRENCY</TableHead>
-                <TableHead className="font-semibold text-right">OPEN BALANCE</TableHead>
-                <TableHead className="font-semibold text-center">ACTION</TableHead>
-              </TableRow>
-            </TableHeader>
+          {/* Batch Actions Bar */}
+          {selectedCustomers.length > 0 && (
+            <div className="mt-4 flex flex-col gap-2 rounded-lg border border-border/80 bg-muted/30 p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="font-mono tabular-nums">
+                  {selectedCustomers.length}
+                </Badge>
+                <span className="text-sm font-medium">
+                  customer{selectedCustomers.length > 1 ? "s" : ""} selected
+                </span>
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="shadow-sm">
+                    Batch actions
+                    <ChevronDown className="ml-2 h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleBatchAction("create-statements")}>Create statements</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleBatchAction("email")}>Email</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => handleBatchAction("make-inactive")}>Make inactive</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
 
-            <TableBody>
-              {isLoadingPage ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                    Loading...
-                  </TableCell>
+          {/* Table */}
+          <div className="mt-4 overflow-x-auto rounded-lg border border-border/80">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-b border-border/80 bg-muted/40 hover:bg-muted/40">
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={selectedCustomers.length === customers.length && customers.length > 0}
+                      onCheckedChange={toggleSelectAll}
+                      aria-label="Select all customers"
+                    />
+                  </TableHead>
+                  <TableHead className="min-w-[180px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Name
+                  </TableHead>
+                  <TableHead className="min-w-[200px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Company
+                  </TableHead>
+                  <TableHead className="min-w-[160px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Phone
+                  </TableHead>
+                  <TableHead className="w-[110px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Currency
+                  </TableHead>
+                  <TableHead className="w-[150px] text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Open balance
+                  </TableHead>
+                  <TableHead className="w-[140px] text-center">
+                    <span className="sr-only">Actions</span>
+                  </TableHead>
                 </TableRow>
-              ) : customers.length === 0 ? (
+              </TableHeader>
+
+              <TableBody>
+                {isLoadingPage ? (
+                  Array.from({ length: 8 }).map((_, idx) => (
+                    <TableRow key={`sk-${idx}`} className="border-border/60">
+                      <TableCell>
+                        <Skeleton className="h-4 w-4" />
+                      </TableCell>
+                      <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-44" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-12" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="ml-auto h-4 w-24" /></TableCell>
+                      <TableCell className="text-center"><Skeleton className="mx-auto h-8 w-28" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : customers.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     {searchQuery ? 'No customers found matching your search.' : 'No customers yet. Click "New customer" to add one.'}
@@ -1126,22 +1173,22 @@ export default function CustomersTable() {
                 customers.map((customer) => (
                   <TableRow
                     key={customer.id}
-                    className={`cursor-pointer hover:bg-muted/40 ${selectedCustomers.includes(customer.id) ? 'bg-muted/30' : ''}`}
+                    className={`cursor-pointer hover:bg-muted/30 ${selectedCustomers.includes(customer.id) ? 'bg-muted/20' : ''}`}
                     onClick={() => router.push(`/customers/${customer.id}`)}
                   >
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox checked={selectedCustomers.includes(customer.id)} onCheckedChange={() => toggleSelect(customer.id)} />
                     </TableCell>
                     <TableCell className="font-medium">{customer.name}</TableCell>
-                    <TableCell>{customer.company_name || 'None'}</TableCell>
-                    <TableCell>{customer.phone || 'NONE'}</TableCell>
-                    <TableCell>{customer.currency}</TableCell>
-                    <TableCell className="text-right">{customer.currency}{customer.opening_balance.toFixed(2)}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{customer.company_name || '—'}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{customer.phone || '—'}</TableCell>
+                    <TableCell className="text-sm">{customer.currency}</TableCell>
+                    <TableCell className="text-right font-semibold tabular-nums">{currency(customer.opening_balance)}</TableCell>
                     <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="link" className="text-primary p-0 h-auto font-normal">
-                            Create invoice
+                          <Button variant="outline" size="sm" className="shadow-sm">
+                            New
                             <ChevronDown className="ml-1 h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -1169,28 +1216,28 @@ export default function CustomersTable() {
           </Table>
         </div>
 
-        {/* Pagination Controls */}
-        {totalCount > 0 && (
-          <div className="mt-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Rows per page:</span>
-              <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
-                <SelectTrigger className="w-[80px] h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="20">20</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                  <SelectItem value="100">100</SelectItem>
-                </SelectContent>
-              </Select>
-              <span className="text-sm text-muted-foreground ml-4">
-                Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} customers
-              </span>
-            </div>
+          {/* Pagination Controls */}
+          {totalCount > 0 && (
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-muted-foreground">Rows per page:</span>
+                <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
+                  <SelectTrigger className="h-9 w-[90px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                  </SelectContent>
+                </Select>
+                <span className="text-sm text-muted-foreground sm:ml-4">
+                  Showing {Math.min(((currentPage - 1) * itemsPerPage) + 1, totalCount)} to {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} customers
+                </span>
+              </div>
 
-            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -1229,10 +1276,11 @@ export default function CustomersTable() {
                 Next
                 <ChevronRight className="h-4 w-4" />
               </Button>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Sales Receipt Creation Dialog — full-screen QuickBooks style */}
       <Dialog open={showSalesReceiptDialog} onOpenChange={setShowSalesReceiptDialog}>

@@ -303,8 +303,11 @@ export async function POST(request: NextRequest) {
     };
 
     addRow("Subtotal", fmtPHP(Number(invoice.subtotal ?? 0)));
-    if (Number(invoice.tax_amount) > 0)
-      addRow(`Tax (${invoice.tax_rate ?? 0}%)`, fmtPHP(Number(invoice.tax_amount)));
+    const taxTotal = Number(
+      (invoice as { tax_total?: number }).tax_total ?? (invoice as { tax_amount?: number }).tax_amount ?? 0
+    );
+    if (taxTotal > 0)
+      addRow("Tax", fmtPHP(taxTotal));
     if (Number(invoice.discount_amount) > 0)
       addRow("Discount", `-${fmtPHP(Number(invoice.discount_amount))}`);
 
@@ -321,7 +324,12 @@ export async function POST(request: NextRequest) {
     doc.setFont("DejaVuSans", "bold"); doc.setFontSize(9);
     doc.text("Amount due", TLBL + 2, dueBl);
     doc.setFontSize(10);
-    doc.text(fmtPHP(Number(invoice.total_amount)), SUM_RIGHT - 1, dueBl, { align: "right" });
+    const amountDue = Number(
+      (invoice as { balance_due?: number }).balance_due ??
+        (invoice as { total_amount?: number }).total_amount ??
+        Number(invoice.subtotal ?? 0) + taxTotal
+    );
+    doc.text(fmtPHP(amountDue), SUM_RIGHT - 1, dueBl, { align: "right" });
     tc(...DARK);
     y = dueTop + BOX_H + 10;
 

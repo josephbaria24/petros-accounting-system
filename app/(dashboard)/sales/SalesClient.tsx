@@ -28,30 +28,42 @@ export default function SalesClient() {
   };
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-4">Sales</h1>
+    <div className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:px-8 lg:py-6 2xl:max-w-[1536px]">
+      <div className="space-y-1">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Sales</p>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Sales</h1>
+        <p className="text-sm text-muted-foreground">Invoices, payments, and customers in one place.</p>
+      </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="mb-4">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="invoices">Invoices</TabsTrigger>
-          <TabsTrigger value="payments">Payments</TabsTrigger>
-          <TabsTrigger value="customers">Customers</TabsTrigger>
+        <TabsList className="mb-2 h-10 w-full justify-start gap-1 rounded-xl border border-border/70 bg-muted/40 p-1">
+          <TabsTrigger value="overview" className="rounded-lg px-3">
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="invoices" className="rounded-lg px-3">
+            Invoices
+          </TabsTrigger>
+          <TabsTrigger value="payments" className="rounded-lg px-3">
+            Payments
+          </TabsTrigger>
+          <TabsTrigger value="customers" className="rounded-lg px-3">
+            Customers
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview">
+        <TabsContent value="overview" className="mt-4">
           <SalesOverview />
         </TabsContent>
 
-        <TabsContent value="invoices">
+        <TabsContent value="invoices" className="mt-4">
           <InvoicesTable />
         </TabsContent>
 
-        <TabsContent value="payments">
+        <TabsContent value="payments" className="mt-4">
           <PaymentsTable />
         </TabsContent>
 
-        <TabsContent value="customers">
+        <TabsContent value="customers" className="mt-4">
           <CustomersTable />
         </TabsContent>
       </Tabs>

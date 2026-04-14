@@ -2,11 +2,14 @@
 "use client"
 import { sileo } from "sileo"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase-client"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -42,6 +45,32 @@ type CustomerAttachment = {
   file_size: number | null
   file_type: string | null
   uploaded_at: string
+}
+
+function invoiceStatusBadgeClass(status: string) {
+  switch (status?.toLowerCase()) {
+    case "paid":
+      return "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-100"
+    case "sent":
+      return "border-sky-200 bg-sky-50 text-sky-900 dark:border-sky-800 dark:bg-sky-950/50 dark:text-sky-100"
+    case "draft":
+      return "border-border bg-muted/80 text-muted-foreground"
+    case "partial":
+      return "border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-100"
+    case "overdue":
+      return "border-red-200 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950/50 dark:text-red-100"
+    default:
+      return "border-border bg-muted/50 text-foreground"
+  }
+}
+
+function DetailField({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+      <div className="min-h-5 text-sm font-medium leading-snug text-foreground wrap-break-word">{children}</div>
+    </div>
+  )
 }
 
 export default function InvoiceDetailPage() {
@@ -379,7 +408,7 @@ export default function InvoiceDetailPage() {
     const subtotal = items.reduce((sum, item) => sum + (item.line_total || 0), 0)
     const taxTotal = items.reduce((sum, item) => sum + (item.tax_amount || 0), 0)
     const total = subtotal + taxTotal
-    
+
     return { subtotal, taxTotal, total }
   }
 
@@ -509,76 +538,124 @@ export default function InvoiceDetailPage() {
   }
 
   if (loading) {
-    return <div className="p-6">Loading invoice...</div>
+    return (
+      <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6 lg:p-8">
+        <div className="h-9 w-40 animate-pulse rounded-md bg-muted" />
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="h-56 animate-pulse rounded-xl bg-muted" />
+          <div className="h-56 animate-pulse rounded-xl bg-muted" />
+        </div>
+        <div className="h-72 animate-pulse rounded-xl bg-muted" />
+      </div>
+    )
   }
 
   if (!invoice) {
-    return <div className="p-6">Invoice not found</div>
+    return (
+      <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 p-8 text-center">
+        <p className="text-lg font-medium">Invoice not found</p>
+        <p className="max-w-sm text-sm text-muted-foreground">This invoice may have been removed or the link is incorrect.</p>
+        <Button variant="outline" className="mt-2" onClick={() => router.back()}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Go back
+        </Button>
+      </div>
+    )
   }
 
   const totals = calculateTotals()
   const selectedCustomer = getSelectedCustomer()
+  const displayStatus = isEditing ? editForm.status : invoice.status
+  const issueLabel = invoice.issue_date ? new Date(invoice.issue_date).toLocaleDateString() : "—"
+  const dueLabel = invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : "—"
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={() => router.back()}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
+    <div className="mx-auto max-w-5xl space-y-8 p-4 sm:p-6 lg:p-8 pb-12">
+      {/* Document header */}
+      <div className="flex flex-col gap-6 rounded-xl border border-border/80 bg-card p-5 shadow-sm sm:p-6 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0 flex-1 space-y-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="-ml-2 h-8 text-muted-foreground hover:text-foreground"
+            onClick={() => router.back()}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
             Back
           </Button>
-          <h1 className="text-2xl font-semibold">
-            Invoice {isEditing ? (
-              <Input 
-                value={editForm.invoice_no}
-                onChange={(e) => setEditForm({ ...editForm, invoice_no: e.target.value })}
-                className="inline-block w-40 h-8"
-              />
-            ) : invoice.invoice_no}
-          </h1>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Invoice</p>
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              {isEditing ? (
+                <Input
+                  value={editForm.invoice_no}
+                  onChange={(e) => setEditForm({ ...editForm, invoice_no: e.target.value })}
+                  className="h-10 max-w-xs text-xl font-semibold tracking-tight"
+                />
+              ) : (
+                <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{invoice.invoice_no}</h1>
+              )}
+              <Badge
+                variant="outline"
+                className={cn("shrink-0 capitalize", invoiceStatusBadgeClass(displayStatus))}
+              >
+                {displayStatus || "—"}
+              </Badge>
+            </div>
+            {!isEditing && (
+              <p className="mt-2 text-sm text-muted-foreground">
+                Issued {issueLabel}
+                <span className="mx-2 text-border">·</span>
+                Due {dueLabel}
+              </p>
+            )}
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleDownloadPDF}>
-            <Download className="h-4 w-4 mr-2" />
+        <div className="flex flex-wrap items-center gap-2 lg:shrink-0 lg:justify-end">
+          <Button variant="outline" size="sm" className="shadow-sm" onClick={handleDownloadPDF}>
+            <Download className="mr-2 h-4 w-4" />
             Download PDF
           </Button>
           {!isEditing ? (
-            <Button onClick={() => setIsEditing(true)}>
+            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => setIsEditing(true)}>
               Edit
             </Button>
           ) : (
             <>
-              <Button variant="outline" onClick={() => {
-                setIsEditing(false)
-                // Reload data to discard changes
-                window.location.reload()
-              }}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setIsEditing(false)
+                  window.location.reload()
+                }}
+              >
                 Cancel
               </Button>
-              <Button onClick={handleSave} className="bg-green-600 hover:bg-green-700">
-                Save Changes
+              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={handleSave}>
+                Save changes
               </Button>
             </>
           )}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Customer Details */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Customer Details</CardTitle>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Card className="border-border/80 shadow-sm">
+          <CardHeader className="border-b border-border/60 pb-4">
+            <CardTitle className="text-base">Bill to</CardTitle>
+            <CardDescription>Customer and billing details</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-5 pt-6">
             {isEditing ? (
               <>
-                <div>
-                  <label className="text-sm font-medium">Customer</label>
-                  <Select 
-                    value={editForm.customer_id} 
+                <div className="space-y-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Customer</p>
+                  <Select
+                    value={editForm.customer_id}
                     onValueChange={(value) => setEditForm({ ...editForm, customer_id: value })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select customer" />
                     </SelectTrigger>
                     <SelectContent>
@@ -590,95 +667,82 @@ export default function InvoiceDetailPage() {
                     </SelectContent>
                   </Select>
                 </div>
-
-                {/* ADD THIS CODE SELECTOR */}
-                    <div>
-                      <label className="text-sm font-medium">Project/Training Code</label>
-                    <Select
-                value={editForm.code || NO_CODE_VALUE}
-                onValueChange={(value) => setEditForm({ ...editForm, code: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select code (optional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NO_CODE_VALUE}>No code</SelectItem>
-                  {codes.map((code) => (
-                    <SelectItem key={code.id} value={code.code}>
-                      <div className="flex flex-col items-start">
-                        <span className="font-medium">{code.code}</span>
-                        <span className="text-xs text-muted-foreground">{code.name}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-                    </div>
-
-
-                
+                <div className="space-y-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Project / training code
+                  </p>
+                  <Select
+                    value={editForm.code || NO_CODE_VALUE}
+                    onValueChange={(value) => setEditForm({ ...editForm, code: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select code (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_CODE_VALUE}>No code</SelectItem>
+                      {codes.map((code) => (
+                        <SelectItem key={code.id} value={code.code}>
+                          <div className="flex flex-col items-start">
+                            <span className="font-medium">{code.code}</span>
+                            <span className="text-xs text-muted-foreground">{code.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 {selectedCustomer && (
                   <>
-                    <div>
-                      <label className="text-sm font-medium">Email</label>
-                      <p className="text-sm text-gray-600">{selectedCustomer.email || "N/A"}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium">Billing Address</label>
-                      <p className="text-sm text-gray-600 whitespace-pre-wrap">
+                    <DetailField label="Email">
+                      <span className="font-normal text-muted-foreground">{selectedCustomer.email || "N/A"}</span>
+                    </DetailField>
+                    <DetailField label="Billing address">
+                      <span className="whitespace-pre-wrap font-normal text-muted-foreground">
                         {selectedCustomer.billing_address || "N/A"}
-                      </p>
-                    </div>
+                      </span>
+                    </DetailField>
                   </>
                 )}
               </>
             ) : (
               <>
-                <div>
-                  <label className="text-sm font-medium">Customer</label>
-                  <p className="text-lg">{invoice.customers?.name || "N/A"}</p>
-                </div>
-
-                {/* ADD THIS CODE DISPLAY */}
-                {invoice.code && (
-                  <div>
-                    <label className="text-sm font-medium">Project/Training Code</label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="inline-flex items-center px-3 py-1 rounded-md bg-blue-100 text-blue-800 font-medium">
+                <DetailField label="Customer name">{invoice.customers?.name || "N/A"}</DetailField>
+                {invoice.code ? (
+                  <DetailField label="Project / training code">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary" className="font-mono text-xs font-semibold">
                         {invoice.code}
-                      </span>
-                      <span className="text-sm text-gray-600">
-                        {codes.find(c => c.code === invoice.code)?.name || ''}
-                      </span>
+                      </Badge>
+                      {codes.find((c) => c.code === invoice.code)?.name ? (
+                        <span className="text-sm font-normal text-muted-foreground">
+                          {codes.find((c) => c.code === invoice.code)?.name}
+                        </span>
+                      ) : null}
                     </div>
-                  </div>
-                )}
-
-                <div>
-                  <label className="text-sm font-medium">Email</label>
-                  <p>{invoice.customers?.email || "N/A"}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Billing Address</label>
-                  <p className="text-sm text-gray-600 whitespace-pre-wrap">
+                  </DetailField>
+                ) : null}
+                <DetailField label="Email">
+                  <span className="font-normal text-muted-foreground">{invoice.customers?.email || "N/A"}</span>
+                </DetailField>
+                <DetailField label="Billing address">
+                  <span className="whitespace-pre-wrap font-normal text-muted-foreground">
                     {invoice.customers?.billing_address || "N/A"}
-                  </p>
-                </div>
+                  </span>
+                </DetailField>
               </>
             )}
           </CardContent>
         </Card>
 
-        {/* Invoice Details */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Invoice Details</CardTitle>
+        <Card className="border-border/80 shadow-sm">
+          <CardHeader className="border-b border-border/60 pb-4">
+            <CardTitle className="text-base">Invoice details</CardTitle>
+            <CardDescription>Dates, terms, and billing context</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium">Issue Date</label>
+          <CardContent className="space-y-5 pt-6">
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div className="space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Issue date</p>
                 {isEditing ? (
                   <Input
                     type="date"
@@ -686,11 +750,11 @@ export default function InvoiceDetailPage() {
                     onChange={(e) => setEditForm({ ...editForm, issue_date: e.target.value })}
                   />
                 ) : (
-                  <p>{invoice.issue_date ? new Date(invoice.issue_date).toLocaleDateString() : "N/A"}</p>
+                  <p className="text-sm font-medium">{issueLabel}</p>
                 )}
               </div>
-              <div>
-                <label className="text-sm font-medium">Due Date</label>
+              <div className="space-y-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Due date</p>
                 {isEditing ? (
                   <Input
                     type="date"
@@ -698,12 +762,12 @@ export default function InvoiceDetailPage() {
                     onChange={(e) => setEditForm({ ...editForm, due_date: e.target.value })}
                   />
                 ) : (
-                  <p>{invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : "N/A"}</p>
+                  <p className="text-sm font-medium">{dueLabel}</p>
                 )}
               </div>
-              <div>
-                <label className="text-sm font-medium">Status</label>
-                {isEditing ? (
+              {isEditing ? (
+                <div className="space-y-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Status</p>
                   <Select value={editForm.status} onValueChange={(value) => setEditForm({ ...editForm, status: value })}>
                     <SelectTrigger>
                       <SelectValue />
@@ -716,12 +780,10 @@ export default function InvoiceDetailPage() {
                       <SelectItem value="overdue">Overdue</SelectItem>
                     </SelectContent>
                   </Select>
-                ) : (
-                  <p className="capitalize">{invoice.status}</p>
-                )}
-              </div>
-              <div>
-                <label className="text-sm font-medium">Terms</label>
+                </div>
+              ) : null}
+              <div className={cn("space-y-2", !isEditing && "sm:col-span-2")}>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Terms</p>
                 {isEditing ? (
                   <Input
                     value={editForm.terms}
@@ -729,13 +791,13 @@ export default function InvoiceDetailPage() {
                     placeholder="Due on receipt"
                   />
                 ) : (
-                  <p>{invoice.terms || "Due on receipt"}</p>
+                  <p className="text-sm font-medium">{invoice.terms || "Due on receipt"}</p>
                 )}
               </div>
             </div>
-            
-            <div>
-              <label className="text-sm font-medium">Location</label>
+            <Separator className="bg-border/60" />
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Location</p>
               {isEditing ? (
                 <Input
                   value={editForm.location}
@@ -743,70 +805,89 @@ export default function InvoiceDetailPage() {
                   placeholder="Business location"
                 />
               ) : (
-                <p>{invoice.location || "N/A"}</p>
+                <p className="text-sm font-medium text-muted-foreground">{invoice.location || "N/A"}</p>
               )}
             </div>
-
-            <div>
-              <label className="text-sm font-medium">Memo</label>
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Memo</p>
               {isEditing ? (
                 <Textarea
                   value={editForm.memo}
                   onChange={(e) => setEditForm({ ...editForm, memo: e.target.value })}
                   placeholder="Memo for customer"
-                  rows={2}
+                  rows={3}
+                  className="min-h-18 resize-y"
                 />
               ) : (
-                <p className="text-sm text-gray-600">{invoice.memo || "N/A"}</p>
+                <p className="text-sm leading-relaxed text-muted-foreground">{invoice.memo || "N/A"}</p>
               )}
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Line Items */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-          <CardTitle>Invoice Items ({items.length})</CardTitle>
+      {/* Line items */}
+      <Card className="border-border/80 shadow-sm">
+        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4 border-b border-border/60 pb-4 space-y-0">
+          <div>
+            <CardTitle className="text-base">Line items</CardTitle>
+            <CardDescription>{items.length} {items.length === 1 ? "item" : "items"} on this invoice</CardDescription>
+          </div>
           {isEditing && (
-            <Button onClick={handleAddItem} size="sm" variant="outline">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Item
+            <Button onClick={handleAddItem} size="sm" variant="outline" className="shadow-sm">
+              <Plus className="mr-2 h-4 w-4" />
+              Add item
             </Button>
           )}
         </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
+        <CardContent className="pt-6">
+          <div className="overflow-x-auto rounded-lg border border-border/80">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead className="min-w-[300px]">Description</TableHead>
-                  <TableHead className="w-[100px]">Quantity</TableHead>
-                  <TableHead className="w-[120px]">Unit Price</TableHead>
-                  <TableHead className="w-[100px]">Tax Rate (%)</TableHead>
-                  <TableHead className="w-[120px]">Tax Amount</TableHead>
-                  <TableHead className="w-[120px]">Line Total</TableHead>
-                  {isEditing && <TableHead className="w-[80px]">Action</TableHead>}
+                <TableRow className="border-b border-border/80 bg-muted/40 hover:bg-muted/40">
+                  <TableHead className="min-w-[220px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Description
+                  </TableHead>
+                  <TableHead className="w-[88px] text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Qty
+                  </TableHead>
+                  <TableHead className="w-[120px] text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Unit price
+                  </TableHead>
+                  <TableHead className="w-[100px] text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Tax %
+                  </TableHead>
+                  <TableHead className="w-[112px] text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Tax
+                  </TableHead>
+                  <TableHead className="w-[120px] text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Line total
+                  </TableHead>
+                  {isEditing && (
+                    <TableHead className="w-[72px] text-center">
+                      <span className="sr-only">Remove</span>
+                    </TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {items.length > 0 ? (
                   items.map((item, index) => (
-                    <TableRow key={item.id}>
-                      <TableCell>
+                    <TableRow key={item.id} className="border-border/60">
+                      <TableCell className="align-top">
                         {isEditing ? (
                           <Textarea
                             value={item.description || ""}
                             onChange={(e) => handleItemChange(index, "description", e.target.value)}
                             placeholder="Item description"
                             rows={2}
-                            className="min-w-[250px]"
+                            className="min-w-[200px] resize-y"
                           />
                         ) : (
-                          <div className="whitespace-pre-wrap">{item.description || "-"}</div>
+                          <div className="whitespace-pre-wrap text-sm leading-relaxed">{item.description || "—"}</div>
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="align-top text-right tabular-nums text-sm">
                         {isEditing ? (
                           <Input
                             type="number"
@@ -814,12 +895,13 @@ export default function InvoiceDetailPage() {
                             onChange={(e) => handleItemChange(index, "quantity", parseFloat(e.target.value) || 0)}
                             min="0"
                             step="0.01"
+                            className="text-right tabular-nums"
                           />
                         ) : (
                           item.quantity
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="align-top text-right tabular-nums text-sm">
                         {isEditing ? (
                           <Input
                             type="number"
@@ -827,37 +909,46 @@ export default function InvoiceDetailPage() {
                             onChange={(e) => handleItemChange(index, "unit_price", parseFloat(e.target.value) || 0)}
                             min="0"
                             step="0.01"
+                            className="text-right tabular-nums"
                           />
                         ) : (
                           `₱${(item.unit_price || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="align-top text-right tabular-nums text-sm">
                         {isEditing ? (
                           <Input
                             type="number"
-                            value={item.tax_rate || 0}
-                            onChange={(e) => handleItemChange(index, "tax_rate", parseFloat(e.target.value) || 0)}
+                            value={(item.tax_rate ?? 0) === 0 ? "" : item.tax_rate}
+                            onChange={(e) =>
+                              handleItemChange(
+                                index,
+                                "tax_rate",
+                                e.target.value === "" ? 0 : parseFloat(e.target.value)
+                              )
+                            }
                             min="0"
                             step="0.01"
+                            className="text-right tabular-nums"
                           />
                         ) : (
                           `${item.tax_rate || 0}%`
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="align-top text-right tabular-nums text-sm text-muted-foreground">
                         ₱{(item.tax_amount || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="align-top text-right text-sm font-semibold tabular-nums">
                         ₱{(item.line_total || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
                       </TableCell>
                       {isEditing && (
-                        <TableCell>
+                        <TableCell className="align-top text-center">
                           <Button
                             variant="ghost"
-                            size="sm"
+                            size="icon"
                             onClick={() => handleRemoveItem(index)}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            aria-label="Remove line"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -867,8 +958,11 @@ export default function InvoiceDetailPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={isEditing ? 7 : 6} className="text-center text-gray-500 py-8">
-                      {isEditing ? "Click 'Add Item' to add invoice items" : "No items added yet"}
+                    <TableCell
+                      colSpan={isEditing ? 7 : 6}
+                      className="py-12 text-center text-sm text-muted-foreground"
+                    >
+                      {isEditing ? "Add at least one line item to this invoice." : "No line items yet."}
                     </TableCell>
                   </TableRow>
                 )}
@@ -879,92 +973,124 @@ export default function InvoiceDetailPage() {
       </Card>
 
       {/* Summary */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Invoice Summary</CardTitle>
+      <Card className="border-border/80 shadow-sm">
+        <CardHeader className="border-b border-border/60 pb-4">
+          <CardTitle className="text-base">Summary</CardTitle>
+          <CardDescription>Amounts in Philippine peso (₱)</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex justify-between text-lg">
-            <span>Subtotal:</span>
-            <span>₱{totals.subtotal.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</span>
-          </div>
-          <div className="flex justify-between text-lg">
-            <span>Tax:</span>
-            <span>₱{totals.taxTotal.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</span>
-          </div>
-          <div className="flex justify-between text-xl font-semibold border-t pt-2">
-            <span>Total:</span>
-            <span>₱{totals.total.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</span>
-          </div>
-          <div className="flex justify-between text-lg text-orange-600">
-            <span>Balance Due:</span>
-            <span>₱{(isEditing ? totals.total : invoice.balance_due || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</span>
+        <CardContent className="pt-6">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-end">
+            <div className="w-full max-w-md space-y-0 rounded-xl border border-border/80 bg-muted/20 p-1 lg:ml-auto">
+              <div className="space-y-3 rounded-lg bg-card p-5 shadow-sm">
+                <div className="flex items-center justify-between gap-6 text-sm">
+                  <span className="text-muted-foreground">Subtotal</span>
+                  <span className="tabular-nums font-medium">
+                    ₱{totals.subtotal.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-6 text-sm">
+                  <span className="text-muted-foreground">Tax</span>
+                  <span className="tabular-nums font-medium">
+                    ₱{totals.taxTotal.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <Separator className="bg-border/80" />
+                <div className="flex items-center justify-between gap-6 text-base font-semibold">
+                  <span>Total</span>
+                  <span className="tabular-nums tracking-tight">
+                    ₱{totals.total.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="rounded-lg border border-amber-500/25 bg-amber-500/8 px-4 py-3 dark:bg-amber-500/10">
+                  <div className="flex items-center justify-between gap-6">
+                    <span className="text-sm font-semibold text-amber-950 dark:text-amber-100">Balance due</span>
+                    <span className="text-lg font-bold tabular-nums tracking-tight text-amber-950 dark:text-amber-50">
+                      ₱
+                      {(isEditing ? totals.total : invoice.balance_due || 0).toLocaleString("en-PH", {
+                        minimumFractionDigits: 2,
+                      })}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Notes */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Notes</CardTitle>
+      <Card className="border-border/80 shadow-sm">
+        <CardHeader className="border-b border-border/60 pb-4">
+          <CardTitle className="text-base">Internal notes</CardTitle>
+          <CardDescription>Not shown on the customer PDF</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           {isEditing ? (
             <Textarea
               value={editForm.notes}
               onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
-              placeholder="Add notes..."
+              placeholder="Add notes for your team..."
               rows={4}
+              className="min-h-24 resize-y"
             />
           ) : (
-            <p className="text-gray-600 whitespace-pre-wrap">{invoice.notes || "No notes"}</p>
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
+              {invoice.notes || "No notes added."}
+            </p>
           )}
         </CardContent>
       </Card>
-    {/* Customer Attachments */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-          <CardTitle>Customer Attachments ({attachments.length})</CardTitle>
-          <Button 
-            onClick={handleAddAttachment} 
-            size="sm" 
+
+      {/* Customer attachments */}
+      <Card className="border-border/80 shadow-sm">
+        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4 border-b border-border/60 pb-4 space-y-0">
+          <div>
+            <CardTitle className="text-base">Customer attachments</CardTitle>
+            <CardDescription>
+              {attachments.length} {attachments.length === 1 ? "file" : "files"} linked to this customer
+            </CardDescription>
+          </div>
+          <Button
+            onClick={handleAddAttachment}
+            size="sm"
             variant="outline"
+            className="shadow-sm"
             disabled={uploadingAttachment || !invoice?.customer_id}
           >
             {uploadingAttachment ? (
               <>
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
                 Uploading...
               </>
             ) : (
               <>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Attachment
+                <Plus className="mr-2 h-4 w-4" />
+                Add attachment
               </>
             )}
           </Button>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           {attachments.length > 0 ? (
             <div className="space-y-3">
               {attachments.map((attachment) => (
                 <div
                   key={attachment.id}
-                  className="flex items-center justify-between p-3 border rounded-lg hover:bg-secondary"
+                  className="flex flex-col gap-3 rounded-lg border border-border/80 bg-card p-4 shadow-sm transition-colors hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between"
                 >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <FileText className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                  <div className="flex min-w-0 flex-1 items-start gap-3">
+                    <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                      <FileText className="h-4 w-4" />
+                    </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium truncate">{attachment.filename}</p>
-                      <p className="text-sm text-gray-500">
+                      <p className="truncate font-medium">{attachment.filename}</p>
+                      <p className="text-xs text-muted-foreground">
                         Uploaded {new Date(attachment.uploaded_at).toLocaleDateString()}
-                        {attachment.file_size && 
-                          ` • ${(attachment.file_size / 1024).toFixed(2)} KB`
-                        }
+                        {attachment.file_size && ` · ${(attachment.file_size / 1024).toFixed(2)} KB`}
                       </p>
                     </div>
                   </div>
-                  <div className="flex gap-2 flex-shrink-0">
+                  <div className="flex flex-wrap gap-2 sm:shrink-0 sm:justify-end">
                     <Button
                       variant="outline"
                       size="sm"
@@ -1018,10 +1144,10 @@ export default function InvoiceDetailPage() {
               ))}
             </div>
           ) : (
-            <div className="text-center py-8 text-gray-500">
-              <FileText className="h-12 w-12 mx-auto mb-2 text-gray-400" />
-              <p>No attachments yet</p>
-              <p className="text-sm">Click "Add Attachment" to upload files</p>
+            <div className="rounded-lg border border-dashed border-border/80 bg-muted/20 py-12 text-center">
+              <FileText className="mx-auto mb-3 h-10 w-10 text-muted-foreground/60" />
+              <p className="text-sm font-medium text-foreground">No attachments yet</p>
+              <p className="mt-1 text-sm text-muted-foreground">Use Add attachment to upload a file for this customer.</p>
             </div>
           )}
         </CardContent>

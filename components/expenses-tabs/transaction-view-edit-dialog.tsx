@@ -21,6 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { FileText, X, Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type Supplier = { id: string; name: string };
 type Code = { id: string; code: string; name: string };
@@ -261,161 +263,133 @@ export function TransactionViewEditDialog({
       ? "View Expense"
       : "Edit Expense";
 
+  const supplierName =
+    suppliers.find((s) => s.id === billEdit.vendor_id)?.name ?? "Supplier";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            {readOnly ? "Read-only view." : "Update the details then click Save."}
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent
+        showCloseButton={false}
+        className={cn(
+          "gap-0 p-0 overflow-hidden flex flex-col max-h-[92vh]",
+          transaction?.type === "Bill"
+            ? "w-[calc(100vw-2rem)] max-w-3xl"
+            : "max-w-2xl"
+        )}
+      >
+        <DialogDescription className="sr-only">
+          {readOnly ? "Read-only view." : "Update the details then save."}
+        </DialogDescription>
 
         {!transaction ? (
-          <div className="text-sm text-muted-foreground">No transaction selected.</div>
+          <div className="p-6 text-sm text-muted-foreground">No transaction selected.</div>
         ) : transaction.type === "Expense" ? (
-          <div className="space-y-4">
-            <div>
-              <Label>Supplier</Label>
-              <Select
-                value={expenseEdit.vendor_id}
-                onValueChange={(v) =>
-                  !readOnly && setExpenseEdit((p) => ({ ...p, vendor_id: v }))
-                }
-                disabled={readOnly}
+          <>
+            <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center text-white shrink-0">
+                  <FileText className="h-4 w-4" />
+                </div>
+                <div>
+                  <DialogTitle className="text-base font-semibold leading-tight">{title}</DialogTitle>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {readOnly ? "View only" : "Edit details below"}
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0"
+                onClick={() => onOpenChange(false)}
               >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Choose supplier" />
-                </SelectTrigger>
-                <SelectContent>
-                  {suppliers.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <X className="h-4 w-4" />
+              </Button>
             </div>
+            <div className="flex-1 overflow-y-auto min-h-0 px-6 py-5 space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Supplier
+                </Label>
+                <Select
+                  value={expenseEdit.vendor_id}
+                  onValueChange={(v) =>
+                    !readOnly && setExpenseEdit((p) => ({ ...p, vendor_id: v }))
+                  }
+                  disabled={readOnly}
+                >
+                  <SelectTrigger className="h-10 w-full">
+                    <SelectValue placeholder="Choose supplier" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {suppliers.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <div>
-              <Label>Category</Label>
-              <Input
-                value={expenseEdit.category}
-                readOnly={readOnly}
-                onChange={(e) =>
-                  setExpenseEdit((p) => ({ ...p, category: e.target.value }))
-                }
-              />
-            </div>
-
-            <div>
-              <Label>Amount</Label>
-              <Input
-                type="number"
-                value={expenseEdit.amount}
-                readOnly={readOnly}
-                onChange={(e) =>
-                  setExpenseEdit((p) => ({
-                    ...p,
-                    amount: parseFloat(e.target.value) || 0,
-                  }))
-                }
-              />
-            </div>
-
-            <div>
-              <Label>Payment method</Label>
-              <Input
-                value={expenseEdit.payment_method}
-                readOnly={readOnly}
-                onChange={(e) =>
-                  setExpenseEdit((p) => ({ ...p, payment_method: e.target.value }))
-                }
-              />
-            </div>
-
-            <div>
-              <Label>Code</Label>
-              <Select
-                value={expenseEdit.code || "none"}
-                onValueChange={(v) =>
-                  !readOnly &&
-                  setExpenseEdit((p) => ({ ...p, code: v === "none" ? "" : v }))
-                }
-                disabled={readOnly}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select code (optional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No code</SelectItem>
-                  {codes.map((c) => (
-                    <SelectItem key={c.id} value={c.code}>
-                      {c.code} - {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label>Notes</Label>
-              <Textarea
-                value={expenseEdit.notes}
-                readOnly={readOnly}
-                onChange={(e) =>
-                  setExpenseEdit((p) => ({ ...p, notes: e.target.value }))
-                }
-              />
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div>
-              <Label>Supplier</Label>
-              <Select
-                value={billEdit.vendor_id}
-                onValueChange={(v) =>
-                  !readOnly && setBillEdit((p) => ({ ...p, vendor_id: v }))
-                }
-                disabled={readOnly}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Choose supplier" />
-                </SelectTrigger>
-                <SelectContent>
-                  {suppliers.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Bill No.</Label>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Category
+                </Label>
                 <Input
-                  value={billEdit.bill_no}
+                  className="h-10"
+                  value={expenseEdit.category}
                   readOnly={readOnly}
                   onChange={(e) =>
-                    setBillEdit((p) => ({ ...p, bill_no: e.target.value }))
+                    setExpenseEdit((p) => ({ ...p, category: e.target.value }))
                   }
                 />
               </div>
 
-              <div>
-                <Label>Code</Label>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Amount
+                </Label>
+                <Input
+                  className="h-10"
+                  type="number"
+                  value={expenseEdit.amount}
+                  readOnly={readOnly}
+                  onChange={(e) =>
+                    setExpenseEdit((p) => ({
+                      ...p,
+                      amount: parseFloat(e.target.value) || 0,
+                    }))
+                  }
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Payment method
+                </Label>
+                <Input
+                  className="h-10"
+                  value={expenseEdit.payment_method}
+                  readOnly={readOnly}
+                  onChange={(e) =>
+                    setExpenseEdit((p) => ({ ...p, payment_method: e.target.value }))
+                  }
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Code
+                </Label>
                 <Select
-                  value={billEdit.code || "none"}
+                  value={expenseEdit.code || "none"}
                   onValueChange={(v) =>
                     !readOnly &&
-                    setBillEdit((p) => ({ ...p, code: v === "none" ? "" : v }))
+                    setExpenseEdit((p) => ({ ...p, code: v === "none" ? "" : v }))
                   }
                   disabled={readOnly}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className="h-10 w-full">
                     <SelectValue placeholder="Select code (optional)" />
                   </SelectTrigger>
                   <SelectContent>
@@ -428,117 +402,316 @@ export function TransactionViewEditDialog({
                   </SelectContent>
                 </Select>
               </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Bill Date</Label>
-                <Input
-                  type="date"
-                  value={billEdit.bill_date}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Notes
+                </Label>
+                <Textarea
+                  value={expenseEdit.notes}
                   readOnly={readOnly}
                   onChange={(e) =>
-                    setBillEdit((p) => ({ ...p, bill_date: e.target.value }))
+                    setExpenseEdit((p) => ({ ...p, notes: e.target.value }))
                   }
-                />
-              </div>
-              <div>
-                <Label>Due Date</Label>
-                <Input
-                  type="date"
-                  value={billEdit.due_date}
-                  readOnly={readOnly}
-                  onChange={(e) =>
-                    setBillEdit((p) => ({ ...p, due_date: e.target.value }))
-                  }
+                  className="min-h-[88px] resize-none"
                 />
               </div>
             </div>
+            <div className="flex items-center justify-end gap-2 px-6 py-4 border-t bg-muted/20 shrink-0">
+              <Button variant="outline" className="h-9 text-sm" onClick={() => onOpenChange(false)}>
+                Close
+              </Button>
+              {!readOnly && (
+                <Button
+                  className="h-9 text-sm bg-green-600 hover:bg-green-700 text-white"
+                  onClick={handleSave}
+                >
+                  Save changes
+                </Button>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center text-white shrink-0">
+                  <FileText className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <DialogTitle className="text-base font-semibold leading-tight truncate">
+                    {title}
+                  </DialogTitle>
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                    {billEdit.bill_no || "No bill number"} · {supplierName}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-lg border">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Total
+                  </span>
+                  <span className="text-lg font-bold text-green-700 tabular-nums">
+                    PHP{totalBill.toLocaleString("en-PH", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                  onClick={() => onOpenChange(false)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
 
-            <div>
-              <Label>Items</Label>
-              <div className="space-y-2">
+            <div className="flex-1 overflow-y-auto min-h-0">
+              <div className="px-6 py-5 space-y-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Supplier
+                  </Label>
+                  <Select
+                    value={billEdit.vendor_id}
+                    onValueChange={(v) =>
+                      !readOnly && setBillEdit((p) => ({ ...p, vendor_id: v }))
+                    }
+                    disabled={readOnly}
+                  >
+                    <SelectTrigger className="h-10 w-full">
+                      <SelectValue placeholder="Choose supplier" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {suppliers.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="border-t" />
+
+              <div className="px-6 py-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Bill no.
+                    </Label>
+                    <Input
+                      className="h-10"
+                      value={billEdit.bill_no}
+                      readOnly={readOnly}
+                      onChange={(e) =>
+                        setBillEdit((p) => ({ ...p, bill_no: e.target.value }))
+                      }
+                      placeholder="Bill number"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Project / training code
+                    </Label>
+                    <Select
+                      value={billEdit.code || "none"}
+                      onValueChange={(v) =>
+                        !readOnly &&
+                        setBillEdit((p) => ({ ...p, code: v === "none" ? "" : v }))
+                      }
+                      disabled={readOnly}
+                    >
+                      <SelectTrigger className="h-10 w-full">
+                        <SelectValue placeholder="Select code (optional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No code</SelectItem>
+                        {codes.map((c) => (
+                          <SelectItem key={c.id} value={c.code}>
+                            {c.code} - {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Bill date
+                    </Label>
+                    <Input
+                      className="h-10"
+                      type="date"
+                      value={billEdit.bill_date}
+                      readOnly={readOnly}
+                      onChange={(e) =>
+                        setBillEdit((p) => ({ ...p, bill_date: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Due date
+                    </Label>
+                    <Input
+                      className="h-10"
+                      type="date"
+                      value={billEdit.due_date}
+                      readOnly={readOnly}
+                      onChange={(e) =>
+                        setBillEdit((p) => ({ ...p, due_date: e.target.value }))
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t" />
+
+              <div className="px-6 py-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Line items
+                  </h3>
+                </div>
                 {loadingItems ? (
-                  <div className="text-sm text-muted-foreground">Loading items...</div>
+                  <div className="text-sm text-muted-foreground py-6 text-center border rounded-lg bg-muted/20">
+                    Loading items…
+                  </div>
                 ) : (
-                  billEdit.items.map((it, idx) => (
-                    <div key={idx} className="grid grid-cols-12 gap-2">
-                      <Input
-                        className="col-span-8"
-                        placeholder="Description"
-                        value={it.description}
-                        readOnly={readOnly}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setBillEdit((p) => {
-                            const items = [...p.items];
-                            items[idx] = { ...items[idx], description: v };
-                            return { ...p, items };
-                          });
-                        }}
-                      />
-                      <Input
-                        className="col-span-3 text-right"
-                        type="number"
-                        placeholder="0.00"
-                        value={it.amount}
-                        readOnly={readOnly}
-                        onChange={(e) => {
-                          const v = parseFloat(e.target.value) || 0;
-                          setBillEdit((p) => {
-                            const items = [...p.items];
-                            items[idx] = { ...items[idx], amount: v };
-                            return { ...p, items };
-                          });
-                        }}
-                      />
-                      <Button
-                        className="col-span-1"
-                        variant="ghost"
-                        onClick={() => removeBillLine(idx)}
-                        disabled={readOnly || billEdit.items.length === 1}
-                      >
-                        ✕
-                      </Button>
-                    </div>
-                  ))
+                  <div className="border rounded-lg overflow-hidden">
+                    <table className="w-full text-sm table-fixed">
+                      <thead>
+                        <tr className="bg-muted/50 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                          <th className="px-3 py-2.5 text-left w-10">#</th>
+                          <th className="px-3 py-2.5 text-left">Description</th>
+                          <th className="px-3 py-2.5 text-right w-32">Amount (PHP)</th>
+                          {!readOnly && <th className="w-12 px-1" />}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {billEdit.items.map((it, idx) => (
+                          <tr key={idx} className="border-t hover:bg-muted/30 transition-colors group">
+                            <td className="px-3 py-2 align-middle">
+                              <span className="text-xs text-muted-foreground font-medium">{idx + 1}</span>
+                            </td>
+                            <td className="px-3 py-2 align-middle">
+                              <Input
+                                className="h-9 text-sm"
+                                placeholder="Description"
+                                value={it.description}
+                                readOnly={readOnly}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  setBillEdit((p) => {
+                                    const items = [...p.items];
+                                    items[idx] = { ...items[idx], description: v };
+                                    return { ...p, items };
+                                  });
+                                }}
+                              />
+                            </td>
+                            <td className="px-3 py-2 align-middle">
+                              <Input
+                                className="h-9 text-sm text-right tabular-nums"
+                                type="number"
+                                placeholder="0.00"
+                                value={it.amount === 0 ? "" : it.amount}
+                                readOnly={readOnly}
+                                onChange={(e) => {
+                                  const raw = e.target.value;
+                                  const v = raw === "" ? 0 : parseFloat(raw) || 0;
+                                  setBillEdit((p) => {
+                                    const items = [...p.items];
+                                    items[idx] = { ...items[idx], amount: v };
+                                    return { ...p, items };
+                                  });
+                                }}
+                              />
+                            </td>
+                            {!readOnly && (
+                              <td className="px-1 py-2 align-middle text-center">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground hover:text-red-600 opacity-0 group-hover:opacity-100 sm:opacity-100"
+                                  onClick={() => removeBillLine(idx)}
+                                  disabled={billEdit.items.length === 1}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {!readOnly && (
+                      <div className="flex items-center gap-2 px-3 py-2.5 border-t bg-muted/20">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 text-xs font-medium text-green-700 hover:text-green-800 hover:bg-green-50"
+                          onClick={addBillLine}
+                        >
+                          + Add line
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 )}
+                <div className="sm:hidden flex justify-end mt-3 text-sm font-semibold tabular-nums">
+                  Total PHP
+                  {totalBill.toLocaleString("en-PH", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </div>
+              </div>
 
-                {!readOnly && (
-                  <Button variant="outline" size="sm" onClick={addBillLine}>
-                    Add line
-                  </Button>
-                )}
+              <div className="border-t" />
+
+              <div className="px-6 py-5">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Memo / notes
+                  </Label>
+                  <Textarea
+                    value={billEdit.notes}
+                    readOnly={readOnly}
+                    onChange={(e) =>
+                      setBillEdit((p) => ({ ...p, notes: e.target.value }))
+                    }
+                    placeholder="Optional notes…"
+                    className="min-h-[88px] resize-none"
+                  />
+                </div>
               </div>
             </div>
 
-            <div>
-              <Label>Notes</Label>
-              <Textarea
-                value={billEdit.notes}
-                readOnly={readOnly}
-                onChange={(e) =>
-                  setBillEdit((p) => ({ ...p, notes: e.target.value }))
-                }
-              />
+            <div className="flex items-center justify-end gap-2 px-6 py-4 border-t bg-muted/20 shrink-0">
+              <Button variant="outline" className="h-9 text-sm" onClick={() => onOpenChange(false)}>
+                Close
+              </Button>
+              {!readOnly && (
+                <Button
+                  className="h-9 text-sm bg-green-600 hover:bg-green-700 text-white"
+                  onClick={handleSave}
+                >
+                  Save changes
+                </Button>
+              )}
             </div>
-
-            <div className="flex justify-end font-semibold">
-              Total: PHP{totalBill.toFixed(2)}
-            </div>
-          </div>
+          </>
         )}
-
-        <div className="flex justify-end gap-2 mt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Close
-          </Button>
-          {!readOnly && (
-            <Button className="bg-green-600 hover:bg-green-700" onClick={handleSave}>
-              Save changes
-            </Button>
-          )}
-        </div>
       </DialogContent>
     </Dialog>
   );
