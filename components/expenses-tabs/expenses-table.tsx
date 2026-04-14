@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase-client";
 import { fetchAllPaged } from "@/lib/supabase-fetch-all";
 import { TransactionViewEditDialog } from "./transaction-view-edit-dialog";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import ManageCodesModal from "@/components/invoice/manage-codes-modal";
@@ -694,191 +694,184 @@ export default function ExpensesDashboard() {
 
   return (
     <div className="flex flex-col">
-      <div className="mb-6">
-        {/* Action Bar */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="All transactions" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All transactions</SelectItem>
-                <SelectItem value="expense">Expense</SelectItem>
-                <SelectItem value="bill">Bill</SelectItem>
-                <SelectItem value="bill-payment">Bill payment</SelectItem>
-                <SelectItem value="cheque">Cheque</SelectItem>
-                <SelectItem value="purchase-order">Purchase order</SelectItem>
-                <SelectItem value="recently-paid">Recently paid</SelectItem>
-              </SelectContent>
-            </Select>
+      <Card className="border-border/80 shadow-sm">
+        <CardHeader className="border-b border-border/60 pb-4">
+          <CardTitle className="text-base">Transactions</CardTitle>
+          <CardDescription>Expenses and bills activity</CardDescription>
+        </CardHeader>
+        <CardContent className="pt-6">
+          {/* Action Bar */}
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={filterType} onValueChange={setFilterType}>
+                <SelectTrigger className="w-[190px]">
+                  <SelectValue placeholder="All transactions" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All transactions</SelectItem>
+                  <SelectItem value="expense">Expense</SelectItem>
+                  <SelectItem value="bill">Bill</SelectItem>
+                  <SelectItem value="bill-payment">Bill payment</SelectItem>
+                  <SelectItem value="cheque">Cheque</SelectItem>
+                  <SelectItem value="purchase-order">Purchase order</SelectItem>
+                  <SelectItem value="recently-paid">Recently paid</SelectItem>
+                </SelectContent>
+              </Select>
 
-            <Button variant="outline" size="sm">
-              <Filter className="mr-2 h-4 w-4" />
-              Filter
-            </Button>
+              <Button variant="outline" size="sm" className="shadow-sm">
+                <Filter className="mr-2 h-4 w-4" />
+                Filter
+              </Button>
 
-            <Button variant="outline" size="sm">
-              Dates: Last 12 months
-            </Button>
+              <Button variant="outline" size="sm" className="shadow-sm">
+                Dates: Last 12 months
+              </Button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="shadow-sm"
+                onClick={() => {
+                  // Generate a reference number
+                  const ref = Math.random().toString(36).substring(2, 8).toUpperCase();
+                  setPayBillsRef(ref);
+                  setPayBillsDate(new Date().toISOString().split("T")[0]);
+                  setPayBillsSelected(new Set());
+                  // Pre-fill amounts with full balance
+                  const amounts: Record<string, number> = {};
+                  bills.filter(b => b.status !== "paid").forEach(b => {
+                    amounts[b.id] = b.total_amount || 0;
+                  });
+                  setPayBillsAmounts(amounts);
+                  setShowPayBills(true);
+                }}
+              >
+                Pay bills
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button className="bg-emerald-600 hover:bg-emerald-700">
+                    New transaction
+                    <ChevronDown className="ml-2 h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setShowBillDialog(true)}>
+                    Bill
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowExpenseDialog(true)}>
+                    Expense
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>Cheque</DropdownMenuItem>
+                  <DropdownMenuItem>Purchase order</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* <Button variant="outline" size="sm">
-              <MessageSquare className="mr-2 h-4 w-4" />
-              Give feedback
-            </Button> */}
-            <Button variant="outline" size="sm" onClick={() => {
-              // Generate a reference number
-              const ref = Math.random().toString(36).substring(2, 8).toUpperCase();
-              setPayBillsRef(ref);
-              setPayBillsDate(new Date().toISOString().split("T")[0]);
-              setPayBillsSelected(new Set());
-              // Pre-fill amounts with full balance
-              const amounts: Record<string, number> = {};
-              bills.filter(b => b.status !== "paid").forEach(b => {
-                amounts[b.id] = b.total_amount || 0;
-              });
-              setPayBillsAmounts(amounts);
-              setShowPayBills(true);
-            }}>
-              Pay bills
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button className="bg-green-600 hover:bg-green-700">
-                  New transaction
-                  <ChevronDown className="ml-2 h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setShowBillDialog(true)}>
-                  Bill
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setShowExpenseDialog(true)}>
-                  Expense
-                </DropdownMenuItem>
-                <DropdownMenuItem>Cheque</DropdownMenuItem>
-                <DropdownMenuItem>Purchase order</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-
-        {/* Toolbar */}
-        <div className="flex items-center justify-end gap-2 mb-4">
-          {/* <Button variant="ghost" size="icon">
-            <Printer className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon">
-            <Settings className="h-4 w-4" />
-          </Button> */}
-        </div>
-
-        {/* Table */}
-        {loading ? (
-          <div className="text-center py-8">Loading...</div>
-        ) : (
-          <div className="border rounded-lg overflow-hidden bg-card">
-            <table className="w-full text-sm">
-              <thead className="bg-card border-b">
-
-                <tr>
-                  <th className="text-left p-3 font-medium w-10">
-                    <Checkbox />
-                  </th>
-                  <th className="text-left p-3 font-medium">DATE</th>
-                  <th className="text-left p-3 font-medium">TYPE</th>
-                  <th className="text-left p-3 font-medium">NO.</th>
-                  <th className="text-left p-3 font-medium">PAYEE</th>
-                  <th className="text-left p-3 font-medium">CATEGORY</th>
-                  <th className="text-right p-3 font-medium">
-                    TOTAL BEFORE SALES TAX
-                  </th>
-                  <th className="text-right p-3 font-medium">SALES TAX</th>
-                  <th className="text-right p-3 font-medium">TOTAL</th>
-                  <th className="text-left p-3 font-medium">STATUS</th>
-                  <th className="text-center p-3 font-medium">ATTACHMENTS</th>
-                  <th className="text-left p-3 font-medium">ACTION</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.length === 0 ? (
+          {/* Table */}
+          {loading ? (
+            <div className="py-12 text-center text-sm text-muted-foreground">Loading transactions...</div>
+          ) : (
+            <div className="mt-4 overflow-x-auto rounded-lg border border-border/80">
+              <table className="w-full table-fixed text-sm">
+                <thead className="bg-muted/40 border-b border-border/80">
                   <tr>
-                    <td colSpan={12} className="text-center py-8 text-muted-foreground">
-                      No transactions found. Click "New transaction" to add one.
-                    </td>
+                    <th className="w-10 px-3 py-3 text-left">
+                      <Checkbox />
+                    </th>
+                    <th className="w-[120px] px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Date</th>
+                    <th className="w-[120px] px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Type</th>
+                    <th className="w-[140px] px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">No.</th>
+                    <th className="w-[220px] px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Payee</th>
+                    <th className="w-[200px] px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Category</th>
+                    <th className="w-[190px] px-3 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Total before sales tax
+                    </th>
+                    <th className="w-[140px] px-3 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Sales tax</th>
+                    <th className="w-[140px] px-3 py-3 text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Total</th>
+                    <th className="w-[120px] px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Status</th>
+                    <th className="w-[130px] px-3 py-3 text-center text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Attachments</th>
+                    <th className="w-[140px] px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Action</th>
                   </tr>
-                ) : (
-                  transactions.map((transaction) => (
-                    <tr key={transaction.id} className="border-b hover:bg-secondary">
-                      <td className="p-3">
-                        <Checkbox />
-                      </td>
-                      <td className="p-3">
-                        {new Date(transaction.date).toLocaleDateString("en-US", {
-                          month: "2-digit",
-                          day: "2-digit",
-                          year: "numeric",
-                        })}
-                      </td>
-                      <td className="p-3">{transaction.type}</td>
-                      <td className="p-3">{transaction.no}</td>
-                      <td className="p-3">{transaction.payee}</td>
-                      <td className="p-3">{transaction.category}</td>
-                      <td className="p-3 text-right">
-                        PHP{transaction.totalBeforeSalesTax.toFixed(2)}
-                      </td>
-                      <td className="p-3 text-right">
-                        PHP{transaction.salesTax.toFixed(2)}
-                      </td>
-                      <td className="p-3 text-right">
-                        PHP{transaction.total.toFixed(2)}
-                      </td>
-                      <td className="p-3">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${transaction.txnStatus === "paid"
-                          ? "bg-green-100 text-green-800"
-                          : transaction.txnStatus === "overdue"
-                            ? "bg-red-100 text-red-800"
-                            : "bg-yellow-100 text-yellow-800"
-                          }`}>
-                          {transaction.txnStatus === "paid" ? "Paid" : transaction.txnStatus === "overdue" ? "Overdue" : "Unpaid"}
-                        </span>
-                      </td>
-                      <td className="p-3 text-center text-muted-foreground">
-                        {transaction.attachments}
-                      </td>
-                      <td className="p-3">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="text-green-600">
-                              View/Edit
-                              <ChevronDown className="ml-1 h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent>
-                            <DropdownMenuItem onClick={() => openView(transaction)}>View</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openEdit(transaction)}>Edit</DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="text-red-600 focus:text-red-600"
-                              onClick={() => handleDeleteTransaction(transaction)}
-                            >
-                              Delete
-                            </DropdownMenuItem>
-
-
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                </thead>
+                <tbody>
+                  {transactions.length === 0 ? (
+                    <tr>
+                      <td colSpan={12} className="text-center py-8 text-muted-foreground">
+                        No transactions found. Click "New transaction" to add one.
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-
-            </table>
-          </div>
-        )}
-      </div>
+                  ) : (
+                    transactions.map((transaction) => (
+                      <tr key={transaction.id} className="border-b border-border/60 hover:bg-muted/30">
+                        <td className="px-3 py-3.5">
+                          <Checkbox />
+                        </td>
+                        <td className="px-3 py-3.5 whitespace-nowrap text-muted-foreground">
+                          {new Date(transaction.date).toLocaleDateString("en-US", {
+                            month: "2-digit",
+                            day: "2-digit",
+                            year: "numeric",
+                          })}
+                        </td>
+                        <td className="px-3 py-3.5">{transaction.type}</td>
+                        <td className="px-3 py-3.5">{transaction.no}</td>
+                        <td className="px-3 py-3.5 truncate">{transaction.payee}</td>
+                        <td className="px-3 py-3.5 truncate text-muted-foreground">{transaction.category}</td>
+                        <td className="px-3 py-3.5 text-right font-semibold tabular-nums">
+                          PHP{transaction.totalBeforeSalesTax.toFixed(2)}
+                        </td>
+                        <td className="px-3 py-3.5 text-right tabular-nums text-muted-foreground">
+                          PHP{transaction.salesTax.toFixed(2)}
+                        </td>
+                        <td className="px-3 py-3.5 text-right font-semibold tabular-nums">
+                          PHP{transaction.total.toFixed(2)}
+                        </td>
+                        <td className="px-3 py-3.5">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${transaction.txnStatus === "paid"
+                            ? "bg-green-100 text-green-800"
+                            : transaction.txnStatus === "overdue"
+                              ? "bg-red-100 text-red-800"
+                              : "bg-yellow-100 text-yellow-800"
+                            }`}>
+                            {transaction.txnStatus === "paid" ? "Paid" : transaction.txnStatus === "overdue" ? "Overdue" : "Unpaid"}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3.5 text-center text-muted-foreground tabular-nums">
+                          {transaction.attachments}
+                        </td>
+                        <td className="px-3 py-3.5">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm" className="shadow-sm">
+                                View/Edit
+                                <ChevronDown className="ml-1 h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                              <DropdownMenuItem onClick={() => openView(transaction)}>View</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openEdit(transaction)}>Edit</DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-red-600 focus:text-red-600"
+                                onClick={() => handleDeleteTransaction(transaction)}
+                              >
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
 
 

@@ -32,22 +32,32 @@ export default function ExpensesPage() {
   }
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-4">Expenses</h1>
+    <div className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:px-8 lg:py-6 2xl:max-w-[1536px]">
+      <div className="space-y-1">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Expenses</p>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Expenses</h1>
+        <p className="text-sm text-muted-foreground">Track spend, bills, and suppliers.</p>
+      </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="mb-4">
-          <TabsTrigger value="expenses">Expenses</TabsTrigger>
-          <TabsTrigger value="bills">Bills</TabsTrigger>
+        <TabsList className="mb-2 h-10 w-full justify-start gap-1 rounded-xl border border-border/70 bg-muted/40 p-1">
+          <TabsTrigger value="expenses" className="rounded-lg px-3">
+            Expenses
+          </TabsTrigger>
+          <TabsTrigger value="bills" className="rounded-lg px-3">
+            Bills
+          </TabsTrigger>
           {/* <TabsTrigger value="purchase-orders">Purchase orders</TabsTrigger> */}
-          <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
+          <TabsTrigger value="suppliers" className="rounded-lg px-3">
+            Suppliers
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="expenses">
+        <TabsContent value="expenses" className="mt-4">
           <ExpensesDashboard />
         </TabsContent>
 
-        <TabsContent value="bills">
+        <TabsContent value="bills" className="mt-4">
           <BillsTable />
         </TabsContent>
 {/* 
@@ -55,7 +65,7 @@ export default function ExpensesPage() {
           <PurchaseOrdersTable />
         </TabsContent> */}
 
-        <TabsContent value="suppliers">
+        <TabsContent value="suppliers" className="mt-4">
           <SuppliersTable />
         </TabsContent>
       </Tabs>
