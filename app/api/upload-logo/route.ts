@@ -83,15 +83,21 @@ export async function POST(req: NextRequest) {
 
         const newFileName = `logo_${randomUUID()}.${extension}`;
 
+        let inCompanyLogosDir = false;
         try {
           await client.ensureDir("company_logos");
           console.log("Company logos directory ensured");
+          inCompanyLogosDir = true;
         } catch (dirError) {
           console.log("Could not ensure company_logos directory, uploading to root");
         }
 
-        let uploadPath = `company_logos/${newFileName}`;
-        let publicUrl = `https://petrosphere.com.ph/uploads/trainees/company_logos/${newFileName}`;
+        // Note: ensureDir() changes the working directory. If we are already inside `company_logos`,
+        // uploading to `company_logos/<file>` will fail on some FTP servers.
+        let uploadPath = inCompanyLogosDir ? newFileName : `company_logos/${newFileName}`;
+        let publicUrl = inCompanyLogosDir
+          ? `https://petrosphere.com.ph/uploads/trainees/company_logos/${newFileName}`
+          : `https://petrosphere.com.ph/uploads/trainees/company_logos/${newFileName}`;
 
         try {
           await client.uploadFrom(logoFile.filepath, uploadPath);

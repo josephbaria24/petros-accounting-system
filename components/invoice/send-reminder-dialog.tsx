@@ -350,7 +350,7 @@ const generatePdfPreview = async () => {
     return "";
   };
 
-  const generateHTMLMessage = async () => {
+  const generateHTMLMessage = async (overrideLogoUrl?: string) => {
     const editorContent = editorRef.current?.innerHTML || "";
     const inlineImages: { filename: string; content: string; cid: string }[] = [];
     const attachments: { filename: string; content: string }[] = [];
@@ -383,7 +383,24 @@ const generatePdfPreview = async () => {
     }
 
     const logoContent = await resolveLogoContentForEmail();
-    if (logoContent) {
+    const preferredLogoUrl = overrideLogoUrl || logoUrl;
+    const httpLogoSrc = preferredLogoUrl?.startsWith("http")
+      ? preferredLogoUrl
+      : typeof logoContent === "string" && logoContent.startsWith("http")
+        ? logoContent
+        : "";
+    const logoKind = httpLogoSrc
+      ? "http"
+      : logoContent?.startsWith("data:image/")
+        ? "data"
+        : logoContent
+          ? "other"
+          : "none";
+
+    // Prefer hosted URL for email to avoid Gmail showing a separate logo attachment.
+    // Fall back to CID embedding only when we have a data URL and no usable hosted URL.
+    const canEmbedCid = !httpLogoSrc && logoKind === "data";
+    if (canEmbedCid) {
       inlineImages.push({
         filename: "inline-logo.png",
         content: logoContent,
@@ -399,9 +416,11 @@ const generatePdfPreview = async () => {
       : "N/A";
     const amountFmt = `₱${invoice.balance_due.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-    const logoHtml = logoContent
+    const logoHtml = canEmbedCid
       ? emailLogoImgHtml()
-      : `<div style="display:inline-block;padding:10px 20px;background:#f3f4f6;border-radius:6px;color:#9ca3af;font-size:13px;font-weight:500;letter-spacing:0.02em;">Your Company</div>`;
+      : logoKind === "http"
+        ? `<img src="${httpLogoSrc}" alt="Company Logo" width="160" height="60" style="max-height:60px;max-width:160px;height:auto;width:auto;display:block;border:0;object-fit:contain;" />`
+        : `<div style="display:inline-block;padding:10px 20px;background:#f3f4f6;border-radius:6px;color:#9ca3af;font-size:13px;font-weight:500;letter-spacing:0.02em;">Your Company</div>`;
 
     return {
       html: `
@@ -492,7 +511,29 @@ const generatePdfPreview = async () => {
     setSending(true);
 
     try {
-      const { html, inlineImages, attachments } = await generateHTMLMessage();
+      // If user picked a logo but didn't upload it yet, upload now so email can use a public URL
+      // (CID inline images often appear as attachments and may be stripped by some providers).
+      let uploadedLogoUrl: string | undefined;
+      if (logoFile && !logoUrl) {
+        try {
+          const formData = new FormData();
+          formData.append("logo", logoFile);
+          const r = await fetch("/api/upload-logo", { method: "POST", body: formData });
+          const data = await r.json();
+          if (r.ok && data?.url) {
+            uploadedLogoUrl = data.url as string;
+            setLogoUrl(uploadedLogoUrl);
+            localStorage.setItem(
+              LAST_LOGO_KEY,
+              JSON.stringify({ preview: logoPreview, url: uploadedLogoUrl })
+            );
+          }
+        } catch {
+          // Ignore upload errors; email will fall back to CID or placeholder.
+        }
+      }
+
+      const { html, inlineImages, attachments } = await generateHTMLMessage(uploadedLogoUrl);
 
       if (saveAsTemplate && templateName.trim()) {
         const { error: templateError } = await supabase
@@ -516,6 +557,17 @@ const generatePdfPreview = async () => {
         localStorage.setItem(LAST_TEMPLATE_KEY, selectedTemplate);
       }
 
+      const toTrimmed = emailData.to.trim();
+      const fromTrimmed = emailData.from.trim();
+      const replyTo =
+        fromTrimmed && /^[^\s<>]+@[^\s<>]+\.[^\s<>]+$/.test(fromTrimmed) ? fromTrimmed : undefined;
+
+      let bcc: string | undefined;
+      if (sendMeCopy) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.email) bcc = user.email;
+      }
+
       // Send email
       const response = await fetch("/api/send-email", {
         method: "POST",
@@ -523,15 +575,30 @@ const generatePdfPreview = async () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          to: emailData.to,
+          to: toTrimmed,
           subject: emailData.subject,
           message: html,
           inlineImages: inlineImages.length > 0 ? inlineImages : undefined,
           attachments: attachments.length > 0 ? attachments : undefined,
+          ...(replyTo ? { replyTo } : {}),
+          ...(bcc ? { bcc } : {}),
         }),
       });
 
-      const result = await response.json();
+      const raw = await response.text();
+      let result: {
+        success?: boolean;
+        error?: string;
+        hint?: string;
+        degraded?: "pdf_omitted" | "attachments_omitted";
+      };
+      try {
+        result = JSON.parse(raw) as typeof result;
+      } catch {
+        throw new Error(
+          response.ok ? "Invalid response from email service." : `Email service error (${response.status}).`
+        );
+      }
 
       if (result.success) {
         await supabase.from("invoice_reminders").insert({
@@ -541,14 +608,26 @@ const generatePdfPreview = async () => {
           sent_at: new Date().toISOString(),
         });
 
-        sileo.success({ title: "Reminder sent", description: "The reminder email was sent successfully." });
+        const degradedDesc =
+          result.degraded === "pdf_omitted"
+            ? "Sent without the invoice PDF — your mail server rejected the attachment. Ask your IT provider or use a smaller PDF; the reminder text was delivered."
+            : result.degraded === "attachments_omitted"
+              ? "Sent without PDF and embedded images due to mail server limits. Open PetroBook for the full invoice."
+              : "The reminder email was sent successfully.";
+
+        sileo.success({ title: "Reminder sent", description: degradedDesc });
         onOpenChange(false);
       } else {
-        throw new Error(result.error || "Failed to send email");
+        const detail = [result.error, result.hint].filter(Boolean).join(" ");
+        throw new Error(detail || "Failed to send email");
       }
     } catch (error) {
       console.error("Error sending reminder:", error);
-      sileo.error({ title: "Send failed", description: "Could not send reminder. Please try again." });
+      sileo.error({
+        title: "Send failed",
+        description:
+          error instanceof Error ? error.message : "Could not send reminder. Please try again.",
+      });
     } finally {
       setSending(false);
     }

@@ -351,7 +351,22 @@ export default function BatchSendReminderDialog({
     }
 
     const logoContent = await resolveLogoContentForEmail();
-    if (logoContent) {
+    const httpLogoSrc = logoUrl?.startsWith("http")
+      ? logoUrl
+      : typeof logoContent === "string" && logoContent.startsWith("http")
+        ? logoContent
+        : "";
+    const logoKind = httpLogoSrc
+      ? "http"
+      : logoContent?.startsWith("data:image/")
+        ? "data"
+        : logoContent
+          ? "other"
+          : "none";
+
+    // Prefer hosted URL to avoid Gmail listing logo as an attachment.
+    const canEmbedCid = !httpLogoSrc && logoKind === "data";
+    if (canEmbedCid) {
       inlineImages.push({
         filename: "inline-logo.png",
         content: logoContent,
@@ -359,10 +374,10 @@ export default function BatchSendReminderDialog({
       });
     }
 
-    const cidLogoHtml = logoContent ? emailLogoCidHref : "";
+    const logoSrcForHtml = canEmbedCid ? emailLogoCidHref : logoKind === "http" ? httpLogoSrc : "";
 
     return {
-      html: buildEmailHtml(invoice, personalizedMessage, cidLogoHtml).trim(),
+      html: buildEmailHtml(invoice, personalizedMessage, logoSrcForHtml).trim(),
       inlineImages,
       attachments,
     };
@@ -393,6 +408,7 @@ export default function BatchSendReminderDialog({
     try {
       let successCount = 0;
       let failCount = 0;
+      let degradedCount = 0;
 
       for (const invoice of invoices) {
         if (!invoice.customer_email) {
@@ -404,6 +420,10 @@ export default function BatchSendReminderDialog({
           const { html, inlineImages, attachments } = await generateHTMLMessageForInvoice(invoice);
 
           // Send email
+          const fromTrimmed = emailData.from.trim();
+          const replyTo =
+            fromTrimmed && /^[^\s<>]+@[^\s<>]+\.[^\s<>]+$/.test(fromTrimmed) ? fromTrimmed : undefined;
+
           const response = await fetch("/api/send-email", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -415,10 +435,15 @@ export default function BatchSendReminderDialog({
               message: html,
               inlineImages: inlineImages.length > 0 ? inlineImages : undefined,
               attachments: attachments.length > 0 ? attachments : undefined,
+              ...(replyTo ? { replyTo } : {}),
             }),
           });
 
-          const result = await response.json();
+          const result = await response.json() as {
+            success?: boolean;
+            error?: string;
+            degraded?: "pdf_omitted" | "attachments_omitted";
+          };
 
           if (result.success) {
             // Record reminder sent
@@ -428,6 +453,7 @@ export default function BatchSendReminderDialog({
               subject: emailData.subject,
               sent_at: new Date().toISOString(),
             });
+            if (result.degraded) degradedCount++;
             successCount++;
           } else {
             failCount++;
@@ -443,7 +469,14 @@ export default function BatchSendReminderDialog({
         localStorage.setItem(LAST_TEMPLATE_KEY, selectedTemplate);
       }
 
-      sileo.success({ title: "Batch send complete", description: `Sent: ${successCount} | Failed: ${failCount}` });
+      sileo.success({
+        title: "Batch send complete",
+        description: `Sent: ${successCount} | Failed: ${failCount}${
+          degradedCount > 0
+            ? ` (${degradedCount} sent without full attachment — mail server rejected the DATA payload; see server logs.)`
+            : ""
+        }`,
+      });
       onRemindersSent();
       onOpenChange(false);
     } catch (error) {

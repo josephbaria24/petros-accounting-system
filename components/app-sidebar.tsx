@@ -21,7 +21,6 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarGroupLabel,
 } from "@/components/ui/sidebar"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -46,18 +45,15 @@ type MenuItem = {
 }
 
 type MenuGroup = {
-  label: string
   items: MenuItem[]
 }
 
 const groupedMenu: MenuGroup[] = [
   {
-    label: "Dashboard",
-    items: [{ title: "Dashboard", url: "/", icon: ChartArea }]
+    items: [{ title: "Dashboard", url: "/", icon: ChartArea }],
   },
 
   {
-    label: "Sales",
     items: [
       { 
         title: "Sales", 
@@ -68,16 +64,15 @@ const groupedMenu: MenuGroup[] = [
           { title: "Invoices", url: "/sales?tab=invoices" },
           { title: "Payments", url: "/sales?tab=payments" },
           { title: "Customers", url: "/sales?tab=customers" },
-        ]
-      }
-    ]
+        ],
+      },
+    ],
   },
 
   {
-    label: "Customers & leads",
     items: [
       {
-        title: "Customers & leads",
+        title: "Customers & Leads",
         url: "/customers-leads",
         icon: Users,
         activePathPrefixes: ["/customers-leads", "/customers", "/contacts"],
@@ -91,7 +86,6 @@ const groupedMenu: MenuGroup[] = [
   },
 
   {
-    label: "Expenses",
     items: [
       { 
         title: "Expenses", 
@@ -102,24 +96,23 @@ const groupedMenu: MenuGroup[] = [
           { title: "Bills", url: "/expenses?tab=bills" },
           { title: "Purchase orders", url: "/expenses?tab=purchase-orders" },
           { title: "Suppliers", url: "/expenses?tab=suppliers" },
-        ]
-      }
-    ]
+        ],
+      },
+    ],
   },
 
   {
-    label: "Accounting",
     items: [
       { title: "Reports", url: "/reports", icon: BarChart3 },
-    ]
+    ],
   },
 
   {
-    label: "Settings",
-    items: [
-      { title: "Settings", url: "/settings", icon: Settings },
-      { title: "Account Overview", url: "/overview", icon: UserCog },
-    ]
+    items: [{ title: "Settings", url: "/settings", icon: Settings }],
+  },
+
+  {
+    items: [{ title: "Account Overview", url: "/overview", icon: UserCog }],
   },
 ]
 
@@ -186,62 +179,72 @@ export function AppSidebar() {
         </SidebarHeader>
 
         <SidebarContent>
-          {groupedMenu.map((group) => (
-            <SidebarGroup key={group.label}>
-              <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {group.items.map((item) => (
-                    <SidebarMenuItem 
-                      key={item.title}
-                      ref={(el) => {
-                        if (el) menuItemRefs.current[item.title] = el
-                      }}
-                      onMouseEnter={() => item.submenu && handleMouseEnter(item.title)}
-                      onMouseLeave={handleMouseLeave}
-                    >
-                      <SidebarMenuButton
-                        asChild
-                        isActive={
-                          item.activePathPrefixes?.length
-                            ? item.activePathPrefixes.some(
-                                (p) => pathname === p || pathname.startsWith(p + "/")
-                              )
-                            : pathname === item.url ||
-                              (item.url !== "/" && pathname.startsWith(item.url))
-                        }
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {groupedMenu.map((group, groupIdx) => (
+                  <div key={groupIdx} className="space-y-1">
+                    {group.items.map((item) => (
+                      <SidebarMenuItem
+                        key={item.title}
+                        ref={(el) => {
+                          if (el) menuItemRefs.current[item.title] = el
+                        }}
+                        onMouseEnter={() => item.submenu && handleMouseEnter(item.title)}
+                        onMouseLeave={handleMouseLeave}
                       >
-                        <Link href={item.url}>
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.title}</span>
-                          {item.submenu && (
-                            <ChevronRight className="h-4 w-4 ml-auto" />
-                          )}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          ))}
+                        <SidebarMenuButton
+                          asChild
+                          isActive={
+                            item.activePathPrefixes?.length
+                              ? item.activePathPrefixes.some(
+                                  (p) => pathname === p || pathname.startsWith(p + "/")
+                                )
+                              : pathname === item.url ||
+                                (item.url !== "/" && pathname.startsWith(item.url))
+                          }
+                        >
+                          <Link href={item.url}>
+                            <item.icon className="h-4 w-4" />
+                            <span>{item.title}</span>
+                            {item.submenu && (
+                              <ChevronRight className="h-4 w-4 ml-auto" />
+                            )}
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
+
+                    {groupIdx < groupedMenu.length - 1 ? (
+                      <div className="my-2 h-px bg-border/60" />
+                    ) : null}
+                  </div>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
         </SidebarContent>
 
-        <SidebarFooter className="p-4 space-y-3">
-          <div className="flex items-center gap-3">
-            <Avatar className="h-8 w-8">
-              <AvatarImage
-                src="logo.png"
-                alt="John Doe"
-              />
-              <AvatarFallback>PSI</AvatarFallback>
-            </Avatar>
-            <div className="flex flex-col">
-              <span className="text-sm font-medium">Admin</span>
-              <span className="text-xs text-muted-foreground">Petrosphere Accounting</span>
+        <SidebarFooter className="px-4 pb-4 pt-6 space-y-4">
+          <div className="h-px bg-border/70" />
+
+          <div className="rounded-md bg-muted/30 p-3">
+            <div className="flex items-center gap-3">
+              <Avatar className="h-9 w-9">
+                <AvatarImage
+                  src="logo.png"
+                  alt="Admin avatar"
+                />
+                <AvatarFallback>PSI</AvatarFallback>
+              </Avatar>
+              <div className="flex flex-col leading-tight">
+                <span className="text-sm font-medium">Admin</span>
+                <span className="text-xs text-muted-foreground">Petrosphere Accounting</span>
+              </div>
             </div>
           </div>
-          <div className="pt-2 border-t">
+
+          <div className="pt-1 border-t">
             <p className="text-xs text-center text-muted-foreground">
               Developed by <span className="font-bold text-foreground">PetroCore<span className="text-red-500">X</span></span>
             </p>

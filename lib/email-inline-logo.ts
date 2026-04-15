@@ -1,8 +1,9 @@
 /**
- * Content-ID for inline logo MIME parts. Domain-style IDs improve Outlook compatibility.
+ * Content-ID for inline logo MIME parts.
+ * Avoid `@` in the id — some SMTP gateways mishandle domain-style CIDs and return generic 5.0.0 failures.
  * Must match exactly in HTML: <img src="cid:…" /> and in nodemailer attachment `cid`.
  */
-export const EMAIL_LOGO_CONTENT_ID = "companylogo@petrosphere.com.ph";
+export const EMAIL_LOGO_CONTENT_ID = "petrosphere-inline-logo";
 
 export const emailLogoCidHref = `cid:${EMAIL_LOGO_CONTENT_ID}`;
 

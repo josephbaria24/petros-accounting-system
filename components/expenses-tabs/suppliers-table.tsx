@@ -23,7 +23,30 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
-import { MessageSquare, Printer, Settings, Search, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
+import {
+  MessageSquare,
+  Printer,
+  Settings,
+  Search,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Building2,
+  AlertTriangle,
+  FileStack,
+  CircleDollarSign,
+} from "lucide-react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 
 type Supplier = {
   id: string
@@ -33,6 +56,27 @@ type Supplier = {
   address: string | null
   open_balance: number
   currency: string
+}
+
+type SupplierRow = {
+  id: string
+  name: string
+  phone: string | null
+  email: string | null
+  address: string | null
+}
+
+type OpenBillRow = {
+  vendor_id: string | null
+  balance_due: number | null
+  status: string
+  bill_date: string | null
+}
+
+type PaidBillRow = {
+  total_amount: number | null
+  status: string
+  bill_date: string | null
 }
 
 export default function SuppliersTable() {
@@ -69,6 +113,11 @@ export default function SuppliersTable() {
   >([])
 
   const [totalPaidLast30Days, setTotalPaidLast30Days] = useState(0)
+  const [overdueCount, setOverdueCount] = useState(0)
+  const [overdueBalance, setOverdueBalance] = useState(0)
+  const [openBillsCount, setOpenBillsCount] = useState(0)
+  const [unpaid365Count, setUnpaid365Count] = useState(0)
+  const [paidLast30Count, setPaidLast30Count] = useState(0)
 
   useEffect(() => {
     fetchSuppliers()
@@ -79,34 +128,53 @@ export default function SuppliersTable() {
     setLoading(true)
     try {
     // 1) Fetch all suppliers (batched)
-    const supplierRows = await fetchAllPaged((from, to) =>
-      supabase.from("suppliers").select("id, name, phone, email, address").order("name").range(from, to)
+    const supplierRows = await fetchAllPaged<SupplierRow>((from, to) =>
+      supabase.from("suppliers").select("id, name, phone, email, address").order("name").range(from, to) as unknown as Promise<{
+        data: SupplierRow[] | null
+        error: unknown
+      }>
     )
 
     // 2) Open bills for balances (batched)
-    const openBills = await fetchAllPaged((from, to) =>
+    const openBills = await fetchAllPaged<OpenBillRow>((from, to) =>
       supabase
         .from("bills")
-        .select("vendor_id, balance_due, status")
+        .select("vendor_id, balance_due, status, bill_date")
         .in("status", ["unpaid", "partial", "overdue"])
-        .range(from, to)
+        .range(from, to) as unknown as Promise<{ data: OpenBillRow[] | null; error: unknown }>
     )
 
     const thirtyDaysAgo = new Date()
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
     // 3) Paid bills last 30 days (batched)
-    const paidBills = await fetchAllPaged((from, to) =>
+    const paidBills = await fetchAllPaged<PaidBillRow>((from, to) =>
       supabase
         .from("bills")
         .select("total_amount, status, bill_date")
         .eq("status", "paid")
         .gte("bill_date", thirtyDaysAgo.toISOString().split("T")[0])
-        .range(from, to)
+        .range(from, to) as unknown as Promise<{ data: PaidBillRow[] | null; error: unknown }>
     )
 
     const paidTotal = paidBills.reduce((sum, b) => sum + Number(b.total_amount ?? 0), 0)
     setTotalPaidLast30Days(paidTotal)
+    setPaidLast30Count(paidBills.length)
+
+    const overdueRows = openBills.filter((b) => b.status === "overdue")
+    setOverdueCount(overdueRows.length)
+    setOverdueBalance(overdueRows.reduce((sum, b) => sum + Number(b.balance_due ?? 0), 0))
+    setOpenBillsCount(openBills.length)
+
+    const cutoff365 = new Date()
+    cutoff365.setDate(cutoff365.getDate() - 365)
+    setUnpaid365Count(
+      openBills.filter((b) => {
+        const d = b.bill_date
+        if (!d) return false
+        return new Date(d) >= cutoff365
+      }).length
+    )
 
     const balanceByVendor = new Map<string, number>()
     for (const b of openBills) {
@@ -344,6 +412,9 @@ export default function SuppliersTable() {
     }
   }
 
+  const formatMoney = (value: number) =>
+    `₱${Number(value || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
   const handleRunImport = async () => {
     if (!importRows.length) {
       toast({ title: "Nothing to import", description: "Upload a CSV first.", variant: "destructive" })
@@ -379,191 +450,302 @@ export default function SuppliersTable() {
     }
   }
 
+  const filteredSuppliers = suppliers.filter((s) =>
+    s.name.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+  const totalPagesFiltered = Math.max(1, Math.ceil(filteredSuppliers.length / rowsPerPage))
+  const pageFiltered = Math.min(currentPage, totalPagesFiltered)
+  const paginatedSuppliers = filteredSuppliers.slice(
+    (pageFiltered - 1) * rowsPerPage,
+    pageFiltered * rowsPerPage
+  )
+
+  if (loading) {
+    return (
+      <Card className="border-border/80 shadow-sm">
+        <CardHeader className="border-b border-border/60 pb-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-1">
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-4 w-64" />
+            </div>
+            <Skeleton className="h-9 w-28" />
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6 pt-6">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Skeleton className="h-24 w-full rounded-xl" />
+            <Skeleton className="h-24 w-full rounded-xl" />
+            <Skeleton className="h-24 w-full rounded-xl" />
+          </div>
+          <Skeleton className="h-10 w-full max-w-md" />
+          <div className="space-y-2">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <div className="flex flex-col">
-      {/* Header Section */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-semibold">Suppliers</h2>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm">
-              <MessageSquare className="mr-2 h-4 w-4" />
+      <Card className="border-border/80 shadow-sm">
+        <CardHeader className="flex flex-col gap-4 border-b border-border/60 pb-4 sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
+          <div className="flex gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Building2 className="h-5 w-5" />
+            </div>
+            <div className="space-y-1">
+              <CardTitle className="text-lg font-semibold tracking-tight">Suppliers</CardTitle>
+              <CardDescription>
+                Vendors and payees for expenses and bills. Search, review balances, and create bills.
+              </CardDescription>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" className="gap-2">
+              <MessageSquare className="h-4 w-4" />
               Give feedback
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button className="bg-green-600 hover:bg-green-700">
-                  New Supplier
-                  <ChevronDown className="ml-2 h-4 w-4" />
+                <Button size="sm" className="gap-1 bg-emerald-600 hover:bg-emerald-700">
+                  New supplier
+                  <ChevronDown className="h-4 w-4 opacity-80" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setShowNewSupplier(true)}>New Supplier</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setShowImportSuppliers(true)}>Import Suppliers</DropdownMenuItem>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={() => setShowNewSupplier(true)}>New supplier</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowImportSuppliers(true)}>Import from CSV</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-        </div>
+        </CardHeader>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="bg-orange-500 text-white p-4 rounded-lg">
-            <div className="text-3xl font-bold">0</div>
-            <div className="text-sm">0 OVERDUE</div>
-            <div className="text-xs mt-1">Unpaid Last 365 Days</div>
+        <CardContent className="space-y-6 pt-6">
+          {/* KPI strip — compact, theme-aware */}
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="relative overflow-hidden rounded-xl border border-border/80 bg-linear-to-br from-amber-500/10 to-card p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Overdue</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums tracking-tight">{formatMoney(overdueBalance)}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {overdueCount} overdue · {unpaid365Count} open in last 365 days
+                  </p>
+                </div>
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-400">
+                  <AlertTriangle className="h-4 w-4" />
+                </div>
+              </div>
+            </div>
+            <div className="rounded-xl border border-border/80 bg-muted/20 p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Open bills</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums">{openBillsCount.toLocaleString()}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">Unpaid, partial, or overdue</p>
+                </div>
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                  <FileStack className="h-4 w-4" />
+                </div>
+              </div>
+            </div>
+            <div className="relative overflow-hidden rounded-xl border border-border/80 bg-linear-to-br from-emerald-500/10 to-card p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Paid (30 days)</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums tracking-tight">{formatMoney(totalPaidLast30Days)}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">{paidLast30Count} bill(s) marked paid</p>
+                </div>
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
+                  <CircleDollarSign className="h-4 w-4" />
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="bg-gray-300 p-4 rounded-lg">
-            <div className="text-3xl font-bold">0</div>
-            <div className="text-sm">0 OPEN BILLS</div>
-          </div>
-          <div className="bg-green-500 text-white p-4 rounded-lg">
-            <div className="text-3xl font-bold">PHP{totalPaidLast30Days.toLocaleString()}</div>
-            <div className="text-sm">41 PAID LAST 30 DAYS</div>
-            <div className="text-xs mt-1">Paid</div>
-          </div>
-        </div>
 
-        {/* Toolbar */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search"
-              className="pl-10"
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-            />
+          {/* Toolbar */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative max-w-md flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search suppliers by name…"
+                className="h-10 border-border/80 pl-10 shadow-sm"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value)
+                  setCurrentPage(1)
+                }}
+              />
+            </div>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-foreground" type="button" aria-label="Print">
+                <Printer className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-foreground" type="button" aria-label="Table settings">
+                <Settings className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon">
-              <Printer className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon">
-              <Settings className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
 
-        {/* Table */}
-        {loading ? (
-          <div className="text-center py-8">Loading...</div>
-        ) : (
-          <div className="border rounded-lg overflow-hidden bg-card">
-            <table className="w-full text-sm">
-              <thead className="bg-card border-b">
-                <tr>
-                  <th className="text-left p-3 font-medium w-10">
-                    <Checkbox />
-                  </th>
-                  <th className="text-left p-3 font-medium">SUPPLIER ↑</th>
-                  <th className="text-left p-3 font-medium">ADDRESS</th>
-                  <th className="text-left p-3 font-medium">PHONE</th>
-                  <th className="text-left p-3 font-medium">EMAIL</th>
-                  <th className="text-left p-3 font-medium">CURRENCY</th>
-                  <th className="text-right p-3 font-medium">OPEN BALANCE</th>
-                  <th className="text-left p-3 font-medium">ACTION</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(() => {
-                  const filtered = suppliers.filter((s) => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
-                  const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage))
-                  const page = Math.min(currentPage, totalPages)
-                  const paginated = filtered.slice((page - 1) * rowsPerPage, page * rowsPerPage)
-
-                  if (filtered.length === 0) {
-                    return (
-                      <tr>
-                        <td colSpan={8} className="text-center py-8 text-muted-foreground">
-                          {suppliers.length === 0 ? 'No suppliers found. Click "New Supplier" to add one.' : "No matching suppliers found."}
-                        </td>
-                      </tr>
-                    )
-                  }
-
-                  return paginated.map((supplier) => (
-                    <tr key={supplier.id} className="border-b hover:bg-secondary">
-                      <td className="p-3">
-                        <Checkbox />
-                      </td>
-                      <td className="p-3 font-medium">{supplier.name}</td>
-                      <td className="p-3">{supplier.address || "-"}</td>
-                      <td className="p-3">{supplier.phone || "-"}</td>
-                      <td className="p-3">{supplier.email || "-"}</td>
-                      <td className="p-3">{supplier.currency}</td>
-                      <td className="p-3 text-right">
-                        PHP{supplier.open_balance.toFixed(2)}
-                      </td>
-                      <td className="p-3">
+          {/* Table */}
+          <div className="overflow-x-auto rounded-lg border border-border/80 bg-card">
+            <Table className="table-fixed min-w-[1024px]">
+              <TableHeader>
+                <TableRow className="border-b border-border/80 bg-muted/40 hover:bg-muted/40">
+                  <TableHead className="w-12">
+                    <Checkbox className="translate-y-0.5" aria-label="Select all" />
+                  </TableHead>
+                  <TableHead className="w-[200px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Supplier
+                  </TableHead>
+                  <TableHead className="min-w-[180px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Address
+                  </TableHead>
+                  <TableHead className="w-[128px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Phone
+                  </TableHead>
+                  <TableHead className="w-[200px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Email
+                  </TableHead>
+                  <TableHead className="w-[88px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Currency
+                  </TableHead>
+                  <TableHead className="w-[132px] text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Open balance
+                  </TableHead>
+                  <TableHead className="w-[148px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Action
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredSuppliers.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="py-14 text-center text-sm text-muted-foreground">
+                      {suppliers.length === 0
+                        ? 'No suppliers yet. Use "New supplier" to add one.'
+                        : "No suppliers match your search."}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  paginatedSuppliers.map((supplier) => (
+                    <TableRow key={supplier.id} className="h-12 border-border/60 hover:bg-muted/30">
+                      <TableCell>
+                        <Checkbox className="translate-y-0.5" aria-label={`Select ${supplier.name}`} />
+                      </TableCell>
+                      <TableCell className="whitespace-normal font-medium">
+                        <span className="block max-w-[200px] truncate" title={supplier.name}>
+                          {supplier.name}
+                        </span>
+                      </TableCell>
+                      <TableCell className="whitespace-normal text-muted-foreground">
+                        <span className="block max-w-[240px] truncate" title={supplier.address || undefined}>
+                          {supplier.address?.trim() ? supplier.address : "—"}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-sm tabular-nums text-muted-foreground">
+                        {supplier.phone?.trim() ? supplier.phone : "—"}
+                      </TableCell>
+                      <TableCell className="whitespace-normal text-sm text-muted-foreground">
+                        <span className="block max-w-[200px] truncate" title={supplier.email || undefined}>
+                          {supplier.email?.trim() ? supplier.email : "—"}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="font-normal tabular-nums">
+                          {supplier.currency}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-semibold tabular-nums">
+                        {formatMoney(supplier.open_balance)}
+                      </TableCell>
+                      <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-blue-600"
-                            >
+                            <Button variant="outline" size="sm" className="h-8 gap-1 px-2.5 font-normal">
                               Create bill
-                              <ChevronDown className="ml-1 h-4 w-4" />
+                              <ChevronDown className="h-3.5 w-3.5 opacity-70" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent>
+                          <DropdownMenuContent align="end" className="w-44">
                             <DropdownMenuItem>Create bill</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openEditSupplier(supplier)}>Edit</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openEditSupplier(supplier)}>Edit supplier</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleMakeInactive(supplier.id)}>Make inactive</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))
-                })()}
-              </tbody>
-            </table>
-
-            {/* Pagination */}
-            {(() => {
-              const filtered = suppliers.filter((s) => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
-              const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage))
-              const page = Math.min(currentPage, totalPages)
-              const start = (page - 1) * rowsPerPage + 1
-              const end = Math.min(page * rowsPerPage, filtered.length)
-
-              if (filtered.length <= rowsPerPage) return null
-
-              return (
-                <div className="flex items-center justify-between px-4 py-3 border-t">
-                  <span className="text-sm text-muted-foreground">
-                    {start}-{end} of {filtered.length}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled={page <= 1} onClick={() => setCurrentPage(page - 1)}>
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    {Array.from({ length: totalPages }, (_, i) => i + 1)
-                      .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
-                      .reduce<(number | string)[]>((acc, p, i, arr) => {
-                        if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("...")
-                        acc.push(p)
-                        return acc
-                      }, [])
-                      .map((p, i) =>
-                        typeof p === "string" ? (
-                          <span key={`ellipsis-${i}`} className="px-1 text-sm text-muted-foreground">…</span>
-                        ) : (
-                          <Button key={p} variant={p === page ? "default" : "outline"} size="sm" className="h-8 w-8 p-0 text-xs" onClick={() => setCurrentPage(p)}>
-                            {p}
-                          </Button>
-                        )
-                      )}
-                    <Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled={page >= totalPages} onClick={() => setCurrentPage(page + 1)}>
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              )
-            })()}
+                )}
+              </TableBody>
+            </Table>
           </div>
-        )}
-      </div>
+
+          {filteredSuppliers.length > rowsPerPage ? (
+            <div className="flex flex-col gap-3 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <span className="text-sm text-muted-foreground">
+                {(pageFiltered - 1) * rowsPerPage + 1}–{Math.min(pageFiltered * rowsPerPage, filteredSuppliers.length)} of{" "}
+                {filteredSuppliers.length}
+              </span>
+              <div className="flex flex-wrap items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  disabled={pageFiltered <= 1}
+                  onClick={() => setCurrentPage(pageFiltered - 1)}
+                  aria-label="Previous page"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                {Array.from({ length: totalPagesFiltered }, (_, i) => i + 1)
+                  .filter((p) => p === 1 || p === totalPagesFiltered || Math.abs(p - pageFiltered) <= 2)
+                  .reduce<(number | string)[]>((acc, p, i, arr) => {
+                    if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("…")
+                    acc.push(p)
+                    return acc
+                  }, [])
+                  .map((p, i) =>
+                    typeof p === "string" ? (
+                      <span key={`ellipsis-${i}`} className="px-1 text-sm text-muted-foreground">
+                        …
+                      </span>
+                    ) : (
+                      <Button
+                        key={p}
+                        variant={p === pageFiltered ? "default" : "outline"}
+                        size="sm"
+                        className="h-8 min-w-8 px-2 text-xs"
+                        onClick={() => setCurrentPage(p)}
+                      >
+                        {p}
+                      </Button>
+                    )
+                  )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  disabled={pageFiltered >= totalPagesFiltered}
+                  onClick={() => setCurrentPage(pageFiltered + 1)}
+                  aria-label="Next page"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ) : filteredSuppliers.length > 0 ? (
+            <p className="border-t border-border/60 pt-4 text-sm text-muted-foreground">
+              {filteredSuppliers.length} supplier{filteredSuppliers.length === 1 ? "" : "s"}
+            </p>
+          ) : null}
+        </CardContent>
+      </Card>
 
       {/* New Supplier Dialog */}
       <Dialog

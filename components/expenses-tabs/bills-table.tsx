@@ -2,12 +2,24 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase-client";
 import { fetchAllPaged } from "@/lib/supabase-fetch-all";
 import { TransactionViewEditDialog } from "./transaction-view-edit-dialog";
 
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -37,12 +49,10 @@ import {
   ChevronDown,
   Filter,
   Download,
-  MessageSquare,
-  Settings,
   X,
   Trash2Icon,
   FileText,
-  CalendarIcon,
+  Receipt,
 } from "lucide-react";
 
 type Bill = {
@@ -63,6 +73,11 @@ type Bill = {
 };
 
 type Supplier = {
+  id: string;
+  name: string;
+};
+
+type SupplierRow = {
   id: string;
   name: string;
 };
@@ -154,8 +169,11 @@ export default function BillsTable() {
 
       if (billsError) throw billsError;
 
-      const suppliersData = await fetchAllPaged((from, to) =>
-        supabase.from("suppliers").select("*").order("name").range(from, to)
+      const suppliersData = await fetchAllPaged<SupplierRow>((from, to) =>
+        supabase.from("suppliers").select("id, name").order("name").range(from, to) as unknown as Promise<{
+          data: SupplierRow[] | null;
+          error: unknown;
+        }>
       );
 
       setBills(billsData || []);
@@ -295,6 +313,18 @@ export default function BillsTable() {
 
     return true;
   });
+
+  const tabCounts = useMemo(
+    () => ({
+      forReview: bills.filter((b) => b.status !== "paid").length,
+      unpaid: bills.filter((b) => b.status === "unpaid").length,
+      paid: bills.filter((b) => b.status === "paid").length,
+    }),
+    [bills]
+  );
+
+  const formatMoney = (value: number) =>
+    `₱${Number(value || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   // Select all toggle
   const toggleSelectAll = () => {
@@ -507,133 +537,155 @@ export default function BillsTable() {
     setShowTxnDialog(true);
   };
 
-  const statusLabel = (status: string) => {
-    switch (status) {
-      case "paid":
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-            Paid
-          </span>
-        );
-      case "overdue":
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-            Overdue
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-            Unpaid
-          </span>
-        );
-    }
+  const billStatusBadge = (status: string) => {
+    const s = (status || "").toLowerCase();
+    if (s === "paid")
+      return (
+        <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 font-normal capitalize text-emerald-800 dark:text-emerald-200">
+          Paid
+        </Badge>
+      );
+    if (s === "overdue")
+      return (
+        <Badge variant="outline" className="border-red-500/40 bg-red-500/10 font-normal capitalize text-red-800 dark:text-red-200">
+          Overdue
+        </Badge>
+      );
+    if (s === "partial")
+      return (
+        <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 font-normal capitalize text-amber-900 dark:text-amber-100">
+          Partial
+        </Badge>
+      );
+    return (
+      <Badge variant="outline" className="font-normal capitalize text-muted-foreground">
+        {s || "Unpaid"}
+      </Badge>
+    );
   };
 
   return (
-    <div className="flex flex-col">
-      {/* Header: Title + Action Buttons */}
-      <div className="flex items-center justify-between mb-5">
-        <h2 className="text-2xl font-bold">Bills</h2>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            className="border-green-600 text-green-600 hover:bg-green-50 disabled:opacity-40"
-            disabled={selectedBills.size === 0}
-            onClick={() => setShowPayDialog(true)}
+    <div className="flex flex-col gap-6">
+      <Card className="border-border/80 shadow-sm">
+        <CardHeader className="flex flex-col gap-4 border-b border-border/60 pb-4 sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
+          <div className="flex gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Receipt className="h-5 w-5" />
+            </div>
+            <div className="space-y-1">
+              <CardTitle className="text-lg font-semibold tracking-tight">Bills</CardTitle>
+              <CardDescription>
+                Track vendor bills, approvals, and payments. {loading ? "Loading…" : `${filteredBills.length} in this view`}
+              </CardDescription>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-border/80"
+              disabled={selectedBills.size === 0}
+              onClick={() => setShowPayDialog(true)}
+            >
+              Pay bills{selectedBills.size > 0 ? ` (${selectedBills.size})` : ""}
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" className="gap-1 bg-emerald-600 hover:bg-emerald-700">
+                  Add bill
+                  <ChevronDown className="h-4 w-4 opacity-80" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem onClick={() => setShowBillDialog(true)}>Create bill manually</DropdownMenuItem>
+                <DropdownMenuItem>Upload bill</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-5 pt-6">
+          {/* Status filter — pill group */}
+          <div
+            className="flex w-full flex-wrap gap-2 rounded-xl border border-border/80 bg-muted/40 p-1 sm:w-auto sm:inline-flex"
+            role="tablist"
+            aria-label="Bill status"
           >
-            Pay bills{selectedBills.size > 0 ? ` (${selectedBills.size})` : ""}
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button className="bg-green-600 hover:bg-green-700 text-white">
-                Add bill
-                <ChevronDown className="ml-2 h-4 w-4" />
+            {(
+              [
+                { id: "for-review" as const, label: "For review", count: tabCounts.forReview },
+                { id: "unpaid" as const, label: "Unpaid", count: tabCounts.unpaid },
+                { id: "paid" as const, label: "Paid", count: tabCounts.paid },
+              ] as const
+            ).map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={statusFilter === tab.id}
+                onClick={() => setStatusFilter(tab.id)}
+                className={cn(
+                  "flex min-h-9 flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors sm:flex-initial",
+                  statusFilter === tab.id
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {tab.label}
+                <span
+                  className={cn(
+                    "rounded-md px-1.5 py-0.5 text-[11px] tabular-nums",
+                    statusFilter === tab.id ? "bg-muted/80 text-foreground" : "bg-muted/50 text-muted-foreground"
+                  )}
+                >
+                  {tab.count}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* Toolbar */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1 border-border/80">
+                    Batch actions
+                    <ChevronDown className="h-4 w-4 opacity-70" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem>Mark as paid</DropdownMenuItem>
+                  <DropdownMenuItem>Mark as unpaid</DropdownMenuItem>
+                  <DropdownMenuItem className="text-destructive focus:text-destructive">Delete selected</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <Button
+                variant={showFilterPanel ? "secondary" : "outline"}
+                size="sm"
+                className="gap-1 border-border/80"
+                onClick={() => setShowFilterPanel(!showFilterPanel)}
+              >
+                <Filter className="h-4 w-4" />
+                Filter
+                {activeFiltersCount > 0 && (
+                  <Badge variant="secondary" className="ml-0.5 h-5 min-w-5 rounded-full px-1.5 text-[11px]">
+                    {activeFiltersCount}
+                  </Badge>
+                )}
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setShowBillDialog(true)}>
-                Create bill manually
-              </DropdownMenuItem>
-              <DropdownMenuItem>Upload bill</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
+            </div>
 
-      {/* Status Filter Tabs */}
-      <div className="flex items-center gap-0 mb-4">
-        <button
-          onClick={() => setStatusFilter("for-review")}
-          className={`px-5 py-2 text-sm font-medium rounded-l-md border transition-colors ${statusFilter === "for-review"
-            ? "bg-gray-900 text-white border-gray-900"
-            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-            }`}
-        >
-          For review
-        </button>
-        <button
-          onClick={() => setStatusFilter("unpaid")}
-          className={`px-5 py-2 text-sm font-medium border-t border-b transition-colors ${statusFilter === "unpaid"
-            ? "bg-gray-900 text-white border-gray-900"
-            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-            }`}
-        >
-          Unpaid
-        </button>
-        <button
-          onClick={() => setStatusFilter("paid")}
-          className={`px-5 py-2 text-sm font-medium rounded-r-md border transition-colors ${statusFilter === "paid"
-            ? "bg-gray-900 text-white border-gray-900"
-            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-            }`}
-        >
-          Paid
-        </button>
-      </div>
+            <Button variant="outline" size="sm" className="gap-2 border-border/80">
+              <Download className="h-4 w-4" />
+              Export
+            </Button>
+          </div>
 
-      {/* Toolbar */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="border-green-600 text-green-600 hover:bg-green-50">
-                Batch actions
-                <ChevronDown className="ml-2 h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem>Mark as paid</DropdownMenuItem>
-              <DropdownMenuItem>Mark as unpaid</DropdownMenuItem>
-              <DropdownMenuItem className="text-red-600">Delete selected</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowFilterPanel(!showFilterPanel)}
-            className={showFilterPanel ? "border-green-600 text-green-600" : ""}
-          >
-            <Filter className="mr-2 h-4 w-4" />
-            Filter
-            {activeFiltersCount > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-600 text-white text-xs font-bold">
-                {activeFiltersCount}
-              </span>
-            )}
-          </Button>
-        </div>
-
-        <Button variant="outline" size="sm">
-          <Download className="mr-2 h-4 w-4" />
-          Export
-        </Button>
-      </div>
-
-      {/* Filter Panel */}
-      {showFilterPanel && (
-        <div className="mb-4 border rounded-lg bg-card p-5 shadow-sm animate-in slide-in-from-top-2 duration-200">
+          {/* Filter Panel */}
+          {showFilterPanel && (
+        <div className="rounded-xl border border-border/80 bg-muted/10 p-5 shadow-sm animate-in slide-in-from-top-2 duration-200">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
             {/* Dates */}
             <div className="space-y-2">
@@ -758,144 +810,180 @@ export default function BillsTable() {
           </div>
 
           {/* Filter Actions */}
-          <div className="flex items-center justify-between mt-5 pt-4 border-t">
-            <Button
-              variant="link"
-              className="text-green-600 hover:text-green-700 px-0 font-semibold"
-              onClick={resetFilters}
-            >
-              Reset
+          <div className="mt-5 flex items-center justify-between border-t border-border/60 pt-4">
+            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={resetFilters}>
+              Reset filters
             </Button>
-            <Button
-              className="bg-green-600 hover:bg-green-700 text-white px-8"
-              onClick={applyFilters}
-            >
+            <Button size="sm" className="bg-emerald-600 px-8 hover:bg-emerald-700" onClick={applyFilters}>
               Apply
             </Button>
           </div>
         </div>
       )}
 
-      {/* Table */}
-      {loading ? (
-        <div className="text-center py-8">Loading...</div>
-      ) : (
-        <div className="border rounded-lg overflow-hidden bg-card">
-          <table className="w-full text-sm">
-            <thead className="bg-card border-b">
-              <tr>
-                <th className="text-left p-3 font-medium w-10">
-                  <Checkbox
-                    checked={filteredBills.length > 0 && selectedBills.size === filteredBills.length}
-                    onCheckedChange={toggleSelectAll}
-                  />
-                </th>
-                <th className="text-left p-3 font-medium text-xs text-muted-foreground tracking-wider">BILL</th>
-                <th className="text-left p-3 font-medium text-xs text-muted-foreground tracking-wider">SOURCE</th>
-                <th className="text-left p-3 font-medium text-xs text-muted-foreground tracking-wider">SUPPLIER</th>
-                <th className="text-left p-3 font-medium text-xs text-muted-foreground tracking-wider">BILL NO</th>
-                <th className="text-left p-3 font-medium text-xs text-muted-foreground tracking-wider">BILL DATE</th>
-                <th className="text-left p-3 font-medium text-xs text-muted-foreground tracking-wider">CATEGORY</th>
-                <th className="text-left p-3 font-medium text-xs text-muted-foreground tracking-wider">DUE DATE</th>
-                <th className="text-right p-3 font-medium text-xs text-muted-foreground tracking-wider">BILL AMOUNT</th>
-                <th className="text-left p-3 font-medium text-xs text-muted-foreground tracking-wider">ACTION</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredBills.length === 0 ? (
-                <tr>
-                  <td colSpan={10} className="text-center py-16">
-                    <div className="flex flex-col items-center gap-3">
-                      <FileText className="h-12 w-12 text-muted-foreground/40" />
-                      <h3 className="text-xl font-bold text-foreground">
-                        {statusFilter === "paid"
-                          ? "No paid bills"
-                          : statusFilter === "unpaid"
-                            ? "No unpaid bills"
-                            : "No bills to review"}
-                      </h3>
-                      <p className="text-sm text-muted-foreground max-w-md">
-                        When you have bills ready to review, you&apos;ll find them here.
-                        <br />
-                        To upload a bill or create a new one, go to{" "}
-                        <button
-                          className="font-semibold text-foreground hover:underline"
-                          onClick={() => setShowBillDialog(true)}
-                        >
-                          Add Bill
-                        </button>
-                        .
-                      </p>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                filteredBills.map((bill) => (
-                  <tr key={bill.id} className="border-b hover:bg-secondary/50 transition-colors">
-                    <td className="p-3">
+          {/* Table */}
+          {loading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-border/80 bg-card">
+              <Table className="table-fixed min-w-[1180px]">
+                <TableHeader>
+                  <TableRow className="border-b border-border/80 bg-muted/40 hover:bg-muted/40">
+                    <TableHead className="w-12">
                       <Checkbox
-                        checked={selectedBills.has(bill.id)}
-                        onCheckedChange={() => toggleSelectBill(bill.id)}
+                        checked={filteredBills.length > 0 && selectedBills.size === filteredBills.length}
+                        onCheckedChange={toggleSelectAll}
+                        aria-label="Select all bills"
                       />
-                    </td>
-                    <td className="p-3">
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">{bill.supplier?.name || "—"}</span>
-                      </div>
-                    </td>
-                    <td className="p-3 text-muted-foreground">Manual</td>
-                    <td className="p-3">{bill.supplier?.name || "—"}</td>
-                    <td className="p-3">{bill.bill_no}</td>
-                    <td className="p-3">
-                      {bill.bill_date
-                        ? new Date(bill.bill_date).toLocaleDateString("en-US", {
-                          month: "2-digit",
-                          day: "2-digit",
-                          year: "numeric",
-                        })
-                        : "—"}
-                    </td>
-                    <td className="p-3">{bill.category || "Bills"}</td>
-                    <td className="p-3">
-                      {bill.due_date
-                        ? new Date(bill.due_date).toLocaleDateString("en-US", {
-                          month: "2-digit",
-                          day: "2-digit",
-                          year: "numeric",
-                        })
-                        : "—"}
-                    </td>
-                    <td className="p-3 text-right font-medium">
-                      PHP{(bill.total_amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="p-3">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="text-green-600 hover:text-green-700">
-                            View/Edit
-                            <ChevronDown className="ml-1 h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          <DropdownMenuItem onClick={() => openView(bill)}>View</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => openEdit(bill)}>Edit</DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-red-600 focus:text-red-600"
-                            onClick={() => handleDeleteBill(bill)}
-                          >
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+                    </TableHead>
+                    <TableHead className="w-[200px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Bill
+                    </TableHead>
+                    <TableHead className="w-[100px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Source
+                    </TableHead>
+                    <TableHead className="w-[160px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Supplier
+                    </TableHead>
+                    <TableHead className="w-[120px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Bill no.
+                    </TableHead>
+                    <TableHead className="w-[110px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Bill date
+                    </TableHead>
+                    <TableHead className="w-[120px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Category
+                    </TableHead>
+                    <TableHead className="w-[110px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Due date
+                    </TableHead>
+                    <TableHead className="w-[100px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Status
+                    </TableHead>
+                    <TableHead className="w-[120px] text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Amount
+                    </TableHead>
+                    <TableHead className="w-[128px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Action
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredBills.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={11} className="py-16">
+                        <div className="flex flex-col items-center gap-4 text-center">
+                          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-dashed border-border/80 bg-muted/30">
+                            <FileText className="h-7 w-7 text-muted-foreground/60" />
+                          </div>
+                          <div className="space-y-2">
+                            <h3 className="text-lg font-semibold tracking-tight">
+                              {statusFilter === "paid"
+                                ? "No paid bills"
+                                : statusFilter === "unpaid"
+                                  ? "No unpaid bills"
+                                  : "No bills to review"}
+                            </h3>
+                            <p className="mx-auto max-w-md text-sm text-muted-foreground">
+                              When you have bills ready to review, you&apos;ll find them here. To create one, use{" "}
+                              <button
+                                type="button"
+                                className="font-medium text-foreground underline-offset-4 hover:underline"
+                                onClick={() => setShowBillDialog(true)}
+                              >
+                                Add bill
+                              </button>
+                              .
+                            </p>
+                          </div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredBills.map((bill) => (
+                      <TableRow key={bill.id} className="h-12 border-border/60 hover:bg-muted/30">
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedBills.has(bill.id)}
+                            onCheckedChange={() => toggleSelectBill(bill.id)}
+                            aria-label={`Select bill ${bill.bill_no}`}
+                          />
+                        </TableCell>
+                        <TableCell className="whitespace-normal">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                            <span className="block truncate font-medium" title={bill.supplier?.name || undefined}>
+                              {bill.supplier?.name || "—"}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">Manual</TableCell>
+                        <TableCell className="whitespace-normal text-sm">
+                          <span className="block max-w-[160px] truncate" title={bill.supplier?.name || undefined}>
+                            {bill.supplier?.name || "—"}
+                          </span>
+                        </TableCell>
+                        <TableCell className="font-mono text-sm tabular-nums">{bill.bill_no}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                          {bill.bill_date
+                            ? new Date(bill.bill_date).toLocaleDateString("en-PH", {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                              })
+                            : "—"}
+                        </TableCell>
+                        <TableCell className="whitespace-normal text-sm">
+                          <span className="line-clamp-2">{bill.category || "Bills"}</span>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                          {bill.due_date
+                            ? new Date(bill.due_date).toLocaleDateString("en-PH", {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                              })
+                            : "—"}
+                        </TableCell>
+                        <TableCell>{billStatusBadge(bill.status)}</TableCell>
+                        <TableCell className="text-right font-semibold tabular-nums">
+                          {formatMoney(bill.total_amount || 0)}
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm" className="h-8 gap-1 px-2.5 font-normal">
+                                View / Edit
+                                <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => openView(bill)}>View</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openEdit(bill)}>Edit</DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => handleDeleteBill(bill)}
+                              >
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Transaction View/Edit Dialog */}
       <TransactionViewEditDialog

@@ -82,6 +82,16 @@
   --input: #c7c7d8;
 }
 
+.smooth-scroll {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .smooth-scroll {
+    scroll-behavior: auto;
+  }
+}
+
 .dark {
   --background: #09090b;
   --foreground: #fcfcfc;

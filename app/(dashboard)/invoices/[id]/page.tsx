@@ -108,6 +108,11 @@ export default function InvoiceDetailPage() {
     code: ""
   })
 
+  const selectedCode =
+    editForm.code && editForm.code !== NO_CODE_VALUE
+      ? codes.find((c) => c.code === editForm.code) ?? null
+      : null
+
   useEffect(() => {
     async function loadData() {
       setLoading(true)
@@ -675,16 +680,27 @@ export default function InvoiceDetailPage() {
                     value={editForm.code || NO_CODE_VALUE}
                     onValueChange={(value) => setEditForm({ ...editForm, code: value })}
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select code (optional)" />
+                    <SelectTrigger className="w-full h-auto min-h-14 items-start gap-3 py-3 whitespace-normal pr-10">
+                      {selectedCode ? (
+                        <div className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-left">
+                          <span className="font-medium leading-tight">{selectedCode.code}</span>
+                          <span className="text-xs leading-relaxed text-muted-foreground line-clamp-2 pb-0.5">
+                            {selectedCode.name}
+                          </span>
+                        </div>
+                      ) : (
+                        <SelectValue placeholder="Select code (optional)" />
+                      )}
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value={NO_CODE_VALUE}>No code</SelectItem>
                       {codes.map((code) => (
                         <SelectItem key={code.id} value={code.code}>
-                          <div className="flex flex-col items-start">
-                            <span className="font-medium">{code.code}</span>
-                            <span className="text-xs text-muted-foreground">{code.name}</span>
+                          <div className="flex w-full flex-col items-start gap-0.5">
+                            <span className="font-medium leading-tight">{code.code}</span>
+                            <span className="text-xs leading-snug text-muted-foreground">
+                              {code.name}
+                            </span>
                           </div>
                         </SelectItem>
                       ))}

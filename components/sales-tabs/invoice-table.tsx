@@ -57,6 +57,22 @@ type SelectedInvoiceForReminder = {
 
 type Customer = Database["public"]["Tables"]["customers"]["Row"]
 
+/** YYYY-MM-DD, aligned with customers-leads overdue logic */
+function todayISODate() {
+  return new Date().toISOString().split("T")[0]
+}
+
+/** Past due date, still has balance, and in unpaid pipeline (same as Customers & leads → Overdue invoices). */
+function isInvoicePastDueWithBalance(inv: Invoice): boolean {
+  const bal = Number(inv.balance_due ?? 0)
+  if (bal <= 0.01) return false
+  const st = inv.status ?? ""
+  if (!["sent", "partial", "overdue"].includes(st)) return false
+  const due = inv.due_date
+  if (!due) return false
+  return due < todayISODate()
+}
+
 function passesDateFilter(inv: Invoice, dateFilter: string): boolean {
   if (dateFilter === "all-time") return true
   const raw = inv.issue_date
@@ -87,9 +103,11 @@ function matchesStatusFilter(inv: Invoice, statusFilter: string): boolean {
       return true
     case "unpaid":
       return bal > 0.01 && ["sent", "partial", "overdue"].includes(st)
+    case "overdue":
+      // DB status may still be "sent" even when past due; match business “overdue”, not only status === "overdue"
+      return isInvoicePastDueWithBalance(inv)
     case "draft":
     case "sent":
-    case "overdue":
     case "paid":
     case "partial":
       return st === statusFilter
@@ -190,12 +208,17 @@ export default function InvoicesTable() {
     const unpaidAmount = unpaidInvoices.reduce((sum, inv) => sum + (inv.balance_due || inv.total_amount || 0), 0)
 
     const overdueAmount = data
-      .filter(inv => inv.status === "overdue")
-      .reduce((sum, inv) => sum + (inv.balance_due || inv.total_amount || 0), 0)
+      .filter((inv) => isInvoicePastDueWithBalance(inv))
+      .reduce((sum, inv) => sum + Number(inv.balance_due ?? inv.total_amount ?? 0), 0)
 
     const notDueYetAmount = data
-      .filter(inv => inv.status === "sent")
-      .reduce((sum, inv) => sum + (inv.balance_due || inv.total_amount || 0), 0)
+      .filter((inv) => {
+        const b = Number(inv.balance_due ?? 0)
+        if (b <= 0.01) return false
+        if (!["sent", "partial", "overdue"].includes(inv.status ?? "")) return false
+        return !isInvoicePastDueWithBalance(inv)
+      })
+      .reduce((sum, inv) => sum + Number(inv.balance_due ?? inv.total_amount ?? 0), 0)
 
     const paidInvoices = data.filter(inv => {
       const issueDate = new Date(inv.issue_date || "")
@@ -306,8 +329,9 @@ export default function InvoicesTable() {
   }, [])
 
   useEffect(() => {
-    if (searchParams.get("invoiceFilter") === "unpaid") {
-      setStatusFilter("unpaid")
+    const f = searchParams.get("invoiceFilter")
+    if (f === "unpaid" || f === "overdue") {
+      setStatusFilter(f)
     }
   }, [searchParams])
 
@@ -322,7 +346,7 @@ export default function InvoicesTable() {
 
   const handleStatusFilterChange = (v: string) => {
     setStatusFilter(v)
-    if (searchParams.get("invoiceFilter") && v !== "unpaid") {
+    if (searchParams.get("invoiceFilter") && v !== "unpaid" && v !== "overdue") {
       const p = new URLSearchParams(searchParams.toString())
       p.delete("invoiceFilter")
       router.replace(`/sales?${p.toString()}`, { scroll: false })

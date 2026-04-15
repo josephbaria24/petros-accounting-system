@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 import { DashboardInsights } from "@/components/dashboard/dashboard-insights"
+import { BankAccountsCard } from "@/components/dashboard/bank-accounts-card"
 
 // Helper function to get date ranges
 function getDateRanges() {
@@ -623,47 +624,12 @@ export default async function Dashboard() {
           />
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-            <Card className="border-border/80 shadow-sm lg:col-span-4">
-              <CardHeader className="border-b border-border/60 pb-4">
-                <CardTitle className="text-base">Invoice status overview</CardTitle>
-                <CardDescription>Current distribution across all invoices</CardDescription>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <div className="space-y-4">
-                  {statusDefs.map(({ status, label, dot, bar }) => {
-                    const rows = invoices?.filter((inv) => inv.status === status) || []
-                    const count = rows.length
-                    const amount = rows.reduce((sum, inv) => sum + Number(inv.total_amount), 0)
-                    const percentage = invoiceTotalCount ? Math.round((count / invoiceTotalCount) * 100) : 0
+            {/* Bank balances: pass accounts={[...]} from Supabase or an accounting integration when ready. */}
+            <div className="md:col-span-2 lg:col-span-3">
+              <BankAccountsCard className="h-full" />
+            </div>
 
-                    return (
-                      <div key={status} className="space-y-2">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", dot)} />
-                            <p className="text-sm font-medium">{label}</p>
-                            <p className="text-xs text-muted-foreground">({count})</p>
-                          </div>
-                          <p className="text-sm font-semibold tabular-nums">
-                            ₱{amount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                            <div className={cn("h-full rounded-full", bar)} style={{ width: `${percentage}%` }} />
-                          </div>
-                          <span className="w-10 text-right text-xs font-semibold tabular-nums text-muted-foreground">
-                            {percentage}%
-                          </span>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-border/80 shadow-sm lg:col-span-3">
+            <Card className="border-border/80 shadow-sm md:col-span-2 lg:col-span-4">
               <CardHeader className="border-b border-border/60 pb-4">
                 <CardTitle className="text-base">Recent invoices</CardTitle>
                 <CardDescription>Latest invoices created</CardDescription>
@@ -707,6 +673,46 @@ export default async function Dashboard() {
               </CardContent>
             </Card>
           </div>
+
+          <Card className="border-border/80 shadow-sm">
+            <CardHeader className="border-b border-border/60 pb-4">
+              <CardTitle className="text-base">Invoice status overview</CardTitle>
+              <CardDescription>Current distribution across all invoices</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div className="space-y-4">
+                {statusDefs.map(({ status, label, dot, bar }) => {
+                  const rows = invoices?.filter((inv) => inv.status === status) || []
+                  const count = rows.length
+                  const amount = rows.reduce((sum, inv) => sum + Number(inv.total_amount), 0)
+                  const percentage = invoiceTotalCount ? Math.round((count / invoiceTotalCount) * 100) : 0
+
+                  return (
+                    <div key={status} className="space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", dot)} />
+                          <p className="text-sm font-medium">{label}</p>
+                          <p className="text-xs text-muted-foreground">({count})</p>
+                        </div>
+                        <p className="text-sm font-semibold tabular-nums">
+                          ₱{amount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                          <div className={cn("h-full rounded-full", bar)} style={{ width: `${percentage}%` }} />
+                        </div>
+                        <span className="w-10 text-right text-xs font-semibold tabular-nums text-muted-foreground">
+                          {percentage}%
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="invoices" className="mt-4 space-y-4">

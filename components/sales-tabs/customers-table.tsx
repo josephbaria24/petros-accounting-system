@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { createClient } from "@/lib/supabase-client";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 import { MessageSquare, Settings, Trash2Icon, Paperclip, Link as LinkIcon, ChevronUp, Eye } from "lucide-react";
 import { Switch } from '@/components/ui/switch';
@@ -212,6 +212,8 @@ export default function CustomersTable() {
   const [isLoadingPage, setIsLoadingPage] = useState(false);
 
   const router = useRouter();
+  const searchParams = useSearchParams();
+
   type Attachment = {
     filename: string;
     file_url: string;
@@ -257,6 +259,13 @@ export default function CustomersTable() {
   useEffect(() => {
     fetchCustomers();
   }, [currentPage, itemsPerPage, searchQuery]);
+
+  /** Open “New customer” dialog when arriving from shortcuts (e.g. /sales?tab=customers&addCustomer=1). */
+  useEffect(() => {
+    if (searchParams.get("addCustomer") !== "1") return;
+    setOpen(true);
+    router.replace("/sales?tab=customers", { scroll: false });
+  }, [searchParams, router]);
 
   const fetchCustomers = async () => {
     setIsLoadingPage(true);
