@@ -371,6 +371,52 @@ export interface Database {
         }
       }
 
+      /** Mirrors `public.profiles` (auth-linked user profile). Extend when you add columns in Supabase. */
+      profiles: {
+        Row: {
+          id: string
+          full_name: string | null
+          phone: string | null
+          job_title: string | null
+          company: string | null
+          location: string | null
+          role: string | null
+          plan: string | null
+          avatar_url: string | null
+          last_sign_in_at: string | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id: string
+          full_name?: string | null
+          phone?: string | null
+          job_title?: string | null
+          company?: string | null
+          location?: string | null
+          role?: string | null
+          plan?: string | null
+          avatar_url?: string | null
+          last_sign_in_at?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          full_name?: string | null
+          phone?: string | null
+          job_title?: string | null
+          company?: string | null
+          location?: string | null
+          role?: string | null
+          plan?: string | null
+          avatar_url?: string | null
+          last_sign_in_at?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+      }
+
       suppliers: {
         Row: {
           id: string

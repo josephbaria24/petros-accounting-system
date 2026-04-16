@@ -3,6 +3,7 @@
 import { sileo } from "sileo"
 
 import { useState, useEffect, useMemo } from "react"
+import useSWR from "swr"
 import { createClient } from "@/lib/supabase-client"
 import { Database } from "@/lib/supabase-types"
 import { ChevronDown, AlertCircle, Settings, ChevronUp, Plus } from "lucide-react"
@@ -54,8 +55,6 @@ type SelectedInvoiceForReminder = {
   due_date?: string | null
   issue_date?: string | null
 }
-
-type Customer = Database["public"]["Tables"]["customers"]["Row"]
 
 /** YYYY-MM-DD, aligned with customers-leads overdue logic */
 function todayISODate() {
@@ -118,12 +117,31 @@ function matchesStatusFilter(inv: Invoice, statusFilter: string): boolean {
 
 export default function InvoicesTable() {
   const supabase = createClient()
-  const [data, setData] = useState<Invoice[]>([])
-  const [customers, setCustomers] = useState<Customer[]>([])
+  const {
+    data: data = [],
+    isLoading: loading,
+    mutate: mutateInvoices,
+  } = useSWR<Invoice[]>(
+    "sales/invoices-with-customers",
+    async () => {
+      const { data: invoices, error } = await supabase
+        .from("invoices")
+        .select(`
+          *,
+          customers (
+            name,
+            email
+          )
+        `)
+        .order("created_at", { ascending: false })
+      if (error) throw error
+      return invoices || []
+    },
+    { keepPreviousData: true }
+  )
   const [statusFilter, setStatusFilter] = useState("all")
   const [dateFilter, setDateFilter] = useState("last-12-months")
   const [showStats, setShowStats] = useState(true)
-  const [loading, setLoading] = useState(true)
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
   const [reminderDialogOpen, setReminderDialogOpen] = useState(false)
@@ -185,7 +203,7 @@ export default function InvoicesTable() {
       if (invErr) throw invErr
 
       setSelectedRows(new Set())
-      await loadInvoices()
+      await mutateInvoices()
       sileo.success({ title: "Deleted", description: "Selected invoices were deleted." })
     } catch (e: any) {
       console.error("Batch delete failed:", e)
@@ -287,46 +305,6 @@ export default function InvoicesTable() {
       return { text: "Sent", subtext: "" }
     }
   }
-
-  const loadInvoices = async () => {
-    setLoading(true)
-    try {
-      const { data: invoices, error } = await supabase
-        .from("invoices")
-        .select(`
-          *,
-          customers (
-            name,
-            email
-          )
-        `)
-        .order("created_at", { ascending: false })
-
-      if (error) throw error
-      
-      console.log("Loaded invoices:", invoices)
-      setData(invoices || [])
-    } catch (error) {
-      console.error("Error loading invoices:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    async function loadData() {
-      await loadInvoices()
-
-      const { data: customersData } = await supabase
-        .from("customers")
-        .select("*")
-        .order("name")
-
-      setCustomers(customersData || [])
-    }
-    
-    loadData()
-  }, [])
 
   useEffect(() => {
     const f = searchParams.get("invoiceFilter")
@@ -740,10 +718,10 @@ export default function InvoicesTable() {
             open={paymentDialogOpen}
             onOpenChange={setPaymentDialogOpen}
             invoice={selectedInvoiceForPayment}
-            onPaymentRecorded={() => {
-              setPaymentDialogOpen(false);
-              setSelectedInvoiceForPayment(null);
-              loadInvoices();
+            onPaymentRecorded={async () => {
+              setPaymentDialogOpen(false)
+              setSelectedInvoiceForPayment(null)
+              await mutateInvoices()
             }}
           />
         )}
@@ -772,9 +750,9 @@ export default function InvoicesTable() {
                 due_date: inv.due_date || null,
                 issue_date: inv.issue_date || null,
               }))}
-            onRemindersSent={() => {
-              loadInvoices();
-              setSelectedRows(new Set());
+            onRemindersSent={async () => {
+              await mutateInvoices()
+              setSelectedRows(new Set())
             }}
           />
         )}

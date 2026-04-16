@@ -923,8 +923,8 @@ export default function ReportsPage() {
   // ── Utilities ────────────────────────────────────────────────────────────
   const filteredCodes = codes.filter(
     (code) =>
-      code.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      code.name.toLowerCase().includes(searchQuery.toLowerCase())
+    code.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    code.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const formatCurrency = (amount: number) =>
@@ -1060,7 +1060,7 @@ export default function ReportsPage() {
           </div>
 
           {/* Favorites section */}
-          <div className="mb-8">
+        <div className="mb-8">
             <button className="flex items-center gap-1 text-sm font-semibold text-foreground mb-3">
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
               Favorites
@@ -1112,211 +1112,211 @@ export default function ReportsPage() {
             <div className="mb-8">
               <h2 className="text-xl font-semibold mb-1">Code-Based Financial Report</h2>
               <p className="text-foreground/60">Track income and expenses for specific projects, trainings, or events</p>
-            </div>
+        </div>
 
-            {/* Code Selector */}
-            <div className="bg-card rounded-lg shadow-sm border p-6 mb-6">
+        {/* Code Selector */}
+        <div className="bg-card rounded-lg shadow-sm border p-6 mb-6">
               <label className="block text-sm font-medium mb-2">Select Code</label>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setShowCodeDropdown(!showCodeDropdown)}
-                  className="w-full md:w-96 flex items-center justify-between px-4 py-3 bg-card border border-gray-300 rounded-lg hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  disabled={loading}
-                >
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowCodeDropdown(!showCodeDropdown)}
+              className="w-full md:w-96 flex items-center justify-between px-4 py-3 bg-card border border-gray-300 rounded-lg hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={loading}
+            >
                   <span>{loading ? "Loading codes..." : selectedCode || "Choose a code..."}</span>
-                  <ChevronDown className="h-5 w-5 text-gray-400" />
-                </button>
+              <ChevronDown className="h-5 w-5 text-gray-400" />
+            </button>
 
-                {showCodeDropdown && (
-                  <div className="absolute z-10 mt-2 w-full md:w-96 bg-card border border-gray-200 rounded-lg shadow-lg">
-                    <div className="p-3 border-b">
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-foreground" />
-                        <input
-                          type="text"
-                          placeholder="Search codes..."
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          autoFocus
-                        />
-                      </div>
-                    </div>
-                    <div className="max-h-64 overflow-y-auto">
-                      {filteredCodes.length > 0 ? (
-                        filteredCodes.map((code) => (
-                          <button
-                            key={code.id}
-                            type="button"
-                            onClick={() => { setSelectedCode(code.code); setShowCodeDropdown(false); setSearchQuery(""); }}
-                            className="w-full text-left px-4 py-3 hover:bg-secondary transition-colors"
-                          >
-                            <div className="font-medium text-foreground">{code.code}</div>
-                            <div className="text-sm text-foreground/50">{code.name}</div>
-                          </button>
-                        ))
-                      ) : (
-                        <div className="px-4 py-8 text-center text-gray-500">
-                          {searchQuery ? "No codes found" : "No codes available. Please add codes first."}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Report Content */}
-            {loadingReport ? (
-              <div className="bg-card rounded-lg shadow-sm border p-12 text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                <p className="text-gray-600">Loading report...</p>
-              </div>
-            ) : reportData ? (
-              <>
-                {/* Summary Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-                  <div className="bg-card rounded-lg shadow-sm border p-6">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-foreground">Total Income</span>
-                      <TrendingUp className="h-5 w-5 text-green-600" />
-                    </div>
-                    <div className="text-2xl font-bold text-foreground">{formatCurrency(reportData.totalIncome)}</div>
-                    <div className="text-xs text-foreground/50 mt-1">{reportData.income.length} transaction{reportData.income.length !== 1 ? "s" : ""}</div>
-                  </div>
-                  <div className="bg-card rounded-lg shadow-sm border p-6">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-foreground">Total Expenses</span>
-                      <TrendingDown className="h-5 w-5 text-red-600" />
-                    </div>
-                    <div className="text-2xl font-bold text-foreground">{formatCurrency(reportData.totalExpenses)}</div>
-                    <div className="text-xs text-foreground/50 mt-1">{reportData.expenses.length} transaction{reportData.expenses.length !== 1 ? "s" : ""}</div>
-                  </div>
-                  <div className="bg-card rounded-lg shadow-sm border p-6">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-foreground">Available Balance</span>
-                      <DollarSign className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div className={`text-2xl font-bold ${reportData.balance >= 0 ? "text-green-600" : "text-red-600"}`}>
-                      {formatCurrency(reportData.balance)}
-                    </div>
-                    <div className="text-xs text-gray-500 mt-1">Net result</div>
-                  </div>
-                  <div className="bg-card rounded-lg shadow-sm border p-6">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-foreground">Profit Margin</span>
-                      <FileText className="h-5 w-5 text-purple-600" />
-                    </div>
-                    <div className="text-2xl font-bold text-foreground">{reportData.profitMargin}%</div>
-                    <div className="text-xs text-foreground/50 mt-1">Of total income</div>
+            {showCodeDropdown && (
+              <div className="absolute z-10 mt-2 w-full md:w-96 bg-card border border-gray-200 rounded-lg shadow-lg">
+                <div className="p-3 border-b">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-foreground" />
+                    <input
+                      type="text"
+                      placeholder="Search codes..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      autoFocus
+                    />
                   </div>
                 </div>
+                <div className="max-h-64 overflow-y-auto">
+                  {filteredCodes.length > 0 ? (
+                    filteredCodes.map((code) => (
+                      <button
+                        key={code.id}
+                        type="button"
+                            onClick={() => { setSelectedCode(code.code); setShowCodeDropdown(false); setSearchQuery(""); }}
+                        className="w-full text-left px-4 py-3 hover:bg-secondary transition-colors"
+                      >
+                        <div className="font-medium text-foreground">{code.code}</div>
+                        <div className="text-sm text-foreground/50">{code.name}</div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="px-4 py-8 text-center text-gray-500">
+                      {searchQuery ? "No codes found" : "No codes available. Please add codes first."}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
 
-                {/* Income Table */}
-                <div className="bg-card rounded-lg shadow-sm border mb-6">
-                  <div className="px-6 py-4 border-b">
-                    <h2 className="text-lg font-semibold text-foreground">Income Transactions</h2>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-card-50 border-b">
-                        <tr>
+        {/* Report Content */}
+        {loadingReport ? (
+          <div className="bg-card rounded-lg shadow-sm border p-12 text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading report...</p>
+          </div>
+        ) : reportData ? (
+          <>
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+              <div className="bg-card rounded-lg shadow-sm border p-6">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-foreground">Total Income</span>
+                  <TrendingUp className="h-5 w-5 text-green-600" />
+                </div>
+                    <div className="text-2xl font-bold text-foreground">{formatCurrency(reportData.totalIncome)}</div>
+                    <div className="text-xs text-foreground/50 mt-1">{reportData.income.length} transaction{reportData.income.length !== 1 ? "s" : ""}</div>
+                </div>
+              <div className="bg-card rounded-lg shadow-sm border p-6">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-foreground">Total Expenses</span>
+                  <TrendingDown className="h-5 w-5 text-red-600" />
+                </div>
+                    <div className="text-2xl font-bold text-foreground">{formatCurrency(reportData.totalExpenses)}</div>
+                    <div className="text-xs text-foreground/50 mt-1">{reportData.expenses.length} transaction{reportData.expenses.length !== 1 ? "s" : ""}</div>
+                </div>
+              <div className="bg-card rounded-lg shadow-sm border p-6">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-foreground">Available Balance</span>
+                  <DollarSign className="h-5 w-5 text-blue-600" />
+                </div>
+                    <div className={`text-2xl font-bold ${reportData.balance >= 0 ? "text-green-600" : "text-red-600"}`}>
+                  {formatCurrency(reportData.balance)}
+                </div>
+                    <div className="text-xs text-gray-500 mt-1">Net result</div>
+                </div>
+              <div className="bg-card rounded-lg shadow-sm border p-6">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-foreground">Profit Margin</span>
+                  <FileText className="h-5 w-5 text-purple-600" />
+                </div>
+                    <div className="text-2xl font-bold text-foreground">{reportData.profitMargin}%</div>
+                    <div className="text-xs text-foreground/50 mt-1">Of total income</div>
+              </div>
+            </div>
+
+            {/* Income Table */}
+            <div className="bg-card rounded-lg shadow-sm border mb-6">
+              <div className="px-6 py-4 border-b">
+                <h2 className="text-lg font-semibold text-foreground">Income Transactions</h2>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-card-50 border-b">
+                    <tr>
                           <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">Date</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">Invoice No</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">Customer</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">Description</th>
                           <th className="px-6 py-3 text-right text-xs font-medium text-foreground uppercase tracking-wider">Amount</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-card divide-y divide-gray-200">
-                        {reportData.income.length > 0 ? (
-                          reportData.income.map((item: IncomeTransaction) => (
-                            <tr key={item.id} className="hover:bg-secondary">
+                    </tr>
+                  </thead>
+                  <tbody className="bg-card divide-y divide-gray-200">
+                    {reportData.income.length > 0 ? (
+                      reportData.income.map((item: IncomeTransaction) => (
+                        <tr key={item.id} className="hover:bg-secondary">
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">{formatDate(item.issue_date)}</td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">{item.invoice_no}</td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">{getName(item.customers)}</td>
                               <td className="px-6 py-4 text-sm text-foreground">{item.notes || "Invoice payment"}</td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-green-600">{formatCurrency(item.total_amount)}</td>
-                            </tr>
-                          ))
-                        ) : (
+                        </tr>
+                      ))
+                    ) : (
                           <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">No income transactions found for this code</td></tr>
-                        )}
-                      </tbody>
-                      <tfoot className="bg-secondary">
-                        <tr>
+                    )}
+                  </tbody>
+                  <tfoot className="bg-secondary">
+                    <tr>
                           <td colSpan={4} className="px-6 py-4 text-sm font-semibold text-foreground text-right">Total Income:</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-600 text-right">{formatCurrency(reportData.totalIncome)}</td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                </div>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
 
-                {/* Expenses Table */}
-                <div className="bg-card rounded-lg shadow-sm border">
-                  <div className="px-6 py-4 border-b">
-                    <h2 className="text-lg font-semibold text-foreground">Expense Transactions</h2>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-card border-b">
-                        <tr>
+            {/* Expenses Table */}
+            <div className="bg-card rounded-lg shadow-sm border">
+              <div className="px-6 py-4 border-b">
+                <h2 className="text-lg font-semibold text-foreground">Expense Transactions</h2>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-card border-b">
+                    <tr>
                           <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">Date</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">Type</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">Reference</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">Vendor</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-foreground uppercase tracking-wider">Description</th>
                           <th className="px-6 py-3 text-right text-xs font-medium text-foreground uppercase tracking-wider">Amount</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-card divide-y divide-gray-200">
-                        {reportData.expenses.length > 0 ? (
-                          reportData.expenses.map((item: any) => (
-                            <tr key={item.id} className="hover:bg-secondary">
+                    </tr>
+                  </thead>
+                  <tbody className="bg-card divide-y divide-gray-200">
+                    {reportData.expenses.length > 0 ? (
+                      reportData.expenses.map((item: any) => (
+                        <tr key={item.id} className="hover:bg-secondary">
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">{formatDate(item.date)}</td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">{item.type}</td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">{item.bill_no}</td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">{item.vendor}</td>
                               <td className="px-6 py-4 text-sm text-foreground">{item.description}</td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-red-600">{formatCurrency(item.amount)}</td>
-                            </tr>
-                          ))
-                        ) : (
+                        </tr>
+                      ))
+                    ) : (
                           <tr><td colSpan={6} className="px-6 py-8 text-center text-foreground">No expense transactions found for this code</td></tr>
-                        )}
-                      </tbody>
-                      <tfoot className="bg-secondary">
-                        <tr>
+                    )}
+                  </tbody>
+                  <tfoot className="bg-secondary">
+                    <tr>
                           <td colSpan={5} className="px-6 py-4 text-sm font-semibold text-foreground text-right">Total Expenses:</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-red-600 text-right">{formatCurrency(reportData.totalExpenses)}</td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                </div>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
 
-                {/* Final Summary */}
+            {/* Final Summary */}
                 <div className="bg-linear-to-r from-blue-600 to-blue-700 rounded-lg shadow-sm border border-blue-700 mt-6 p-6 text-white">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold mb-1">Net Result for {selectedCode}</h3>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold mb-1">Net Result for {selectedCode}</h3>
                       <p className="text-blue-100 text-sm">{codes.find((c) => c.code === selectedCode)?.name}</p>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm text-blue-100 mb-1">Available Balance</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm text-blue-100 mb-1">Available Balance</div>
                       <div className={`text-3xl font-bold ${reportData.balance >= 0 ? "text-white" : "text-yellow-300"}`}>
-                        {formatCurrency(reportData.balance)}
-                      </div>
-                    </div>
+                    {formatCurrency(reportData.balance)}
                   </div>
                 </div>
-              </>
-            ) : (
-              <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
-                <FileText className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Code Selected</h3>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
+            <FileText className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Code Selected</h3>
                 <p className="text-gray-600">Please select a code from the dropdown above to view the financial report</p>
               </div>
             )}
@@ -1471,8 +1471,8 @@ export default function ReportsPage() {
               <div className="bg-card rounded-lg shadow-sm border p-12 text-center">
                 <TrendingUp className="h-16 w-16 text-gray-300 mx-auto mb-4" />
                 <p className="text-gray-500">Select a period to view the Profit & Loss report</p>
-              </div>
-            )}
+          </div>
+        )}
           </>
         )}
 
@@ -1506,7 +1506,7 @@ export default function ReportsPage() {
                   <option value="last-year">Last year</option>
                   <option value="custom">Custom</option>
                 </select>
-              </div>
+      </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-foreground/60">From</span>
                 <input type="date" value={bsFrom} onChange={(e) => { setBsFrom(e.target.value); setBsPeriod("custom"); }}
@@ -1514,7 +1514,7 @@ export default function ReportsPage() {
                 <span className="text-sm text-foreground/60">To</span>
                 <input type="date" value={bsTo} onChange={(e) => { setBsTo(e.target.value); setBsPeriod("custom"); }}
                   className="px-3 py-1.5 border rounded-md bg-card text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
+    </div>
               <div className="flex items-center gap-1 sm:ml-2">
                 <span className="text-sm text-foreground/60 mr-1">Accounting method</span>
                 <div className="flex rounded-md border overflow-hidden text-sm">

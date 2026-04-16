@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { Geist } from "next/font/google"
 import "./globals.css"
 import { SileoToaster } from "@/components/sileo-toaster"
+import { SwrProvider } from "@/components/swr-provider"
 import { ThemeProvider } from "@/components/theme-provider"
 
 const geist = Geist({ subsets: ["latin"] })
@@ -24,8 +25,10 @@ export default function RootLayout({
       </head>
       <body className={geist.className}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          {children}
-          <SileoToaster />
+          <SwrProvider>
+            {children}
+            <SileoToaster />
+          </SwrProvider>
         </ThemeProvider>
       </body>
     </html>

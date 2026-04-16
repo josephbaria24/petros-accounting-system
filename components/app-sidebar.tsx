@@ -244,7 +244,7 @@ export function AppSidebar() {
             </div>
           </div>
 
-          <div className="pt-1 border-t">
+          <div className="pt-3 border-t">
             <p className="text-xs text-center text-muted-foreground">
               Developed by <span className="font-bold text-foreground">PetroCore<span className="text-red-500">X</span></span>
             </p>

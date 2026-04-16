@@ -64,6 +64,7 @@
     "react-resizable-panels": "^2.1.7",
     "recharts": "latest",
     "sileo": "^0.1.5",
+    "swr": "^2.4.1",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.9",

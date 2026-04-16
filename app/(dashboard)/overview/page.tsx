@@ -1,395 +1,801 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import Link from "next/link"
+import useSWR from "swr"
+import { createClient } from "@/lib/supabase-client"
+import {
+  fetchAccountOverview,
+  displayName,
+  initialsFromName,
+  formatMonthYear,
+  formatMediumDate,
+  formatDateTime,
+  userMetaString,
+} from "@/lib/fetch-account-overview"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Progress } from "@/components/ui/progress"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   User,
   Mail,
   Shield,
   CreditCard,
   Clock,
-  ChevronRight,
   Globe,
   Bell,
   Lock,
   Smartphone,
   Eye,
   Download,
-  LogOut,
   Settings,
   Key,
   Monitor,
   MapPin,
   Calendar,
   CheckCircle2,
-  AlertCircle,
+  Check,
   Pencil,
+  AlertCircle,
+  Loader2,
+  Sparkles,
+  ArrowUpRight,
 } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
+import { cn } from "@/lib/utils"
+
+const ACCOUNT_ROLE_PRESETS = [
+  { value: "admin", label: "Administrator" },
+  { value: "manager", label: "Manager" },
+  { value: "accountant", label: "Accountant" },
+  { value: "sales", label: "Sales" },
+  { value: "user", label: "User" },
+] as const
+
+type AccountRolePreset = (typeof ACCOUNT_ROLE_PRESETS)[number]["value"]
+
+const ROLE_SYNONYMS: Record<string, AccountRolePreset> = {
+  admin: "admin",
+  administrator: "admin",
+  manager: "manager",
+  accountant: "accountant",
+  accounting: "accountant",
+  sales: "sales",
+  user: "user",
+}
+
+function normalizeAccountRole(raw: string | null | undefined): string {
+  if (!raw?.trim()) return "user"
+  const key = raw.trim().toLowerCase()
+  if (key in ROLE_SYNONYMS) return ROLE_SYNONYMS[key]
+  if (ACCOUNT_ROLE_PRESETS.some((p) => p.value === key)) return key as AccountRolePreset
+  return raw.trim().toLowerCase()
+}
+
+function roleOptionLabel(value: string): string {
+  const preset = ACCOUNT_ROLE_PRESETS.find((p) => p.value === value)
+  return preset?.label ?? (value ? value.charAt(0).toUpperCase() + value.slice(1) : "—")
+}
 
 export default function Overview() {
+  const { toast } = useToast()
+  const profileSectionRef = useRef<HTMLDivElement>(null)
   const [activeTab, setActiveTab] = useState("settings")
+  const [savingProfile, setSavingProfile] = useState(false)
+  const [savingRole, setSavingRole] = useState(false)
+  const [form, setForm] = useState({
+    fullName: "",
+    email: "",
+    phone: "",
+    jobTitle: "",
+    company: "",
+    location: "",
+    role: "user",
+  })
 
-  return (
-    <div className="max-w-6xl mx-auto px-6 py-8">
+  const { data, error, isLoading, mutate } = useSWR(
+    "account-overview",
+    fetchAccountOverview,
+    { revalidateOnFocus: true, dedupingInterval: 60_000, keepPreviousData: true }
+  )
 
-      {/* Page header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Account Overview</h1>
-          <p className="text-sm text-muted-foreground mt-1">Manage your profile, security, and billing preferences</p>
-        </div>
-        <Button variant="outline" size="sm" className="h-9 text-sm gap-2">
-          <Settings className="h-3.5 w-3.5" />
-          Preferences
-        </Button>
-      </div>
+  useEffect(() => {
+    if (!data) return
+    const { user, profile } = data
+    setForm({
+      fullName: displayName(user, profile),
+      email: user.email ?? "",
+      phone: profile?.phone ?? userMetaString(user, "phone"),
+      jobTitle: profile?.job_title ?? userMetaString(user, "job_title"),
+      company: profile?.company ?? userMetaString(user, "company"),
+      location: profile?.location ?? userMetaString(user, "location"),
+      // Prefer Auth user metadata (we write role there), fall back to profiles.role if needed.
+      role: normalizeAccountRole(userMetaString(user, "role") || profile?.role),
+    })
+  }, [data])
 
-      {/* Profile card */}
-      <div className="rounded-xl border bg-card overflow-hidden mb-8">
-        <div className="h-24 bg-linear-to-r from-green-600 via-green-500 to-emerald-400 relative">
-          <div className="absolute -bottom-10 left-6">
-            <div className="w-20 h-20 rounded-xl bg-white border-4 border-white shadow-lg flex items-center justify-center text-2xl font-bold text-green-700">
-              JD
-            </div>
+  const handleSaveProfile = async () => {
+    if (!data?.user) return
+    setSavingProfile(true)
+    try {
+      const supabase = createClient()
+      const { data: updated, error: authErr } = await supabase.auth.updateUser({
+        data: {
+          full_name: form.fullName.trim() || undefined,
+          phone: form.phone.trim() || undefined,
+          job_title: form.jobTitle.trim() || undefined,
+          company: form.company.trim() || undefined,
+          location: form.location.trim() || undefined,
+          role: form.role.trim() || undefined,
+        },
+      })
+      if (authErr) throw authErr
+
+      if (updated.user) {
+        // Update SWR cache immediately to avoid UI "snapping back" while auth metadata propagates.
+        mutate({ user: updated.user, profile: data.profile }, { revalidate: false })
+      }
+      toast({
+        title: "Profile saved",
+        description: "Saved to your Supabase Auth user profile (user metadata).",
+      })
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Update failed."
+      toast({
+        title: "Could not save",
+        description: msg,
+        variant: "destructive",
+      })
+    } finally {
+      setSavingProfile(false)
+    }
+  }
+
+  const handleRoleChange = async (next: string) => {
+    if (!data?.user) return
+    const prev = form.role
+    setForm((f) => ({ ...f, role: next }))
+    setSavingRole(true)
+    try {
+      const supabase = createClient()
+      const { data: updated, error: authErr } = await supabase.auth.updateUser({
+        data: { role: next.trim() || undefined },
+      })
+      if (authErr) throw authErr
+      if (updated.user) {
+        mutate({ user: updated.user, profile: data.profile }, { revalidate: false })
+      }
+      toast({
+        title: "Role updated",
+        description: "Saved to your Supabase Auth user metadata.",
+      })
+    } catch (e: unknown) {
+      setForm((f) => ({ ...f, role: prev }))
+      const msg = e instanceof Error ? e.message : "Update failed."
+      toast({
+        title: "Could not update role",
+        description: msg,
+        variant: "destructive",
+      })
+    } finally {
+      setSavingRole(false)
+    }
+  }
+
+  const handleEditProfileClick = () => {
+    setActiveTab("settings")
+    window.setTimeout(() => {
+      profileSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    }, 80)
+  }
+
+  if (isLoading && !data) {
+    return (
+      <div className="min-h-[70vh] bg-linear-to-b from-slate-50/90 via-white to-emerald-50/15">
+        <div className="mx-auto max-w-7xl space-y-8 px-3 py-10 sm:px-4 lg:px-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <Skeleton className="h-8 w-56 rounded-lg" />
+            <Skeleton className="h-10 w-36 rounded-xl" />
           </div>
+          <Skeleton className="h-64 w-full rounded-3xl" />
+          <div className="grid gap-4 md:grid-cols-3">
+            <Skeleton className="h-40 rounded-2xl" />
+            <Skeleton className="h-40 rounded-2xl" />
+            <Skeleton className="h-40 rounded-2xl" />
+          </div>
+          <Skeleton className="h-12 w-full max-w-xl rounded-2xl" />
+          <Skeleton className="h-96 w-full rounded-3xl" />
         </div>
+      </div>
+    )
+  }
 
-        <div className="pt-14 pb-6 px-6">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+  if (error || !data) {
+    return (
+      <div className="min-h-[50vh] bg-linear-to-b from-slate-50/90 to-white px-4 py-10 sm:px-6">
+        <div className="mx-auto max-w-xl">
+          <div className="rounded-2xl border border-destructive/25 bg-destructive/5 p-6 shadow-sm flex gap-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-destructive/10">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+            </div>
             <div>
-              <div className="flex items-center gap-3">
-                <h2 className="text-xl font-bold">Jane Doe</h2>
-                <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100">Active</Badge>
-              </div>
-              <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-1.5">
-                <Mail className="h-3.5 w-3.5" />
-                jane@example.com
+              <p className="font-semibold text-destructive">Could not load account</p>
+              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+                {error instanceof Error ? error.message : "Sign in again or check your Supabase connection."}
               </p>
             </div>
-            <Button variant="outline" size="sm" className="h-9 gap-2 self-start sm:self-auto">
-              <Pencil className="h-3.5 w-3.5" />
-              Edit Profile
-            </Button>
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* Stats row */}
-        <div className="grid grid-cols-2 md:grid-cols-5 divide-x">
-          {[
-            { label: "Role", value: "Accountant", icon: User },
-            { label: "Joined", value: "Mar 2022", icon: Calendar },
-            { label: "Plan", value: "Premium", icon: CreditCard },
-            { label: "Location", value: "Philippines", icon: MapPin },
-          ].map((stat) => (
-            <div key={stat.label} className="px-6 py-4">
-              <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
-                <stat.icon className="h-3 w-3" />
-                {stat.label}
-              </div>
-              <div className="text-sm font-semibold">{stat.value}</div>
-            </div>
-          ))}
-          <div className="px-6 py-4">
-            <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
-              <Globe className="h-3 w-3" />
-              Usage
-            </div>
-            <Progress value={70} className="h-1.5 mt-2" />
-            <div className="text-xs text-muted-foreground mt-1">70% of storage used</div>
           </div>
         </div>
       </div>
+    )
+  }
 
-      {/* Quick info cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div className="rounded-xl border bg-card p-5">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
-              <CreditCard className="h-4 w-4 text-blue-600" />
-            </div>
-            <h3 className="text-sm font-semibold">Billing</h3>
-          </div>
-          <div className="space-y-1.5 text-sm text-muted-foreground">
-            <p>Last payment: <span className="text-foreground font-medium">Apr 1, 2025</span></p>
-            <p>Next renewal: <span className="text-foreground font-medium">May 1, 2025</span></p>
-            <p>Card ending: <span className="text-foreground font-medium">•••• 4242</span></p>
-          </div>
-        </div>
+  const { user, profile } = data
+  const name = displayName(user, profile)
+  const initials = initialsFromName(name)
+  const lastSignIn =
+    profile?.last_sign_in_at || user.last_sign_in_at || null
+  const emailVerified = Boolean(user.email_confirmed_at)
 
-        <div className="rounded-xl border bg-card p-5">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center">
-              <Monitor className="h-4 w-4 text-green-600" />
-            </div>
-            <h3 className="text-sm font-semibold">Recent Logins</h3>
-          </div>
-          <div className="space-y-2">
-            {[
-              { browser: "Chrome", location: "New York", date: "Nov 19" },
-              { browser: "Safari", location: "Los Angeles", date: "Nov 18" },
-              { browser: "Firefox", location: "Remote", date: "Nov 17" },
-            ].map((login, i) => (
-              <div key={i} className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">{login.browser} · {login.location}</span>
-                <span className="text-xs text-muted-foreground">{login.date}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+  const planLabel =
+    profile?.plan?.trim() || userMetaString(user, "plan").trim() || "—"
+  const locationLabel =
+    profile?.location?.trim() || userMetaString(user, "location").trim() || "—"
 
-        <div className="rounded-xl border bg-card p-5">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-9 h-9 rounded-lg bg-orange-50 flex items-center justify-center">
-              <Shield className="h-4 w-4 text-orange-600" />
-            </div>
-            <h3 className="text-sm font-semibold">Security</h3>
-          </div>
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm">
-              <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
-              <span>Two-factor authentication enabled</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-              <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
-              <span>Password changed Oct 12, 2025</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-              <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
-              <span>Recovery email configured</span>
-            </div>
-          </div>
-        </div>
+  const statItems = [
+    { label: "Joined", value: formatMonthYear(user.created_at), icon: Calendar },
+    { label: "Plan", value: planLabel, icon: CreditCard },
+    { label: "Location", value: locationLabel, icon: MapPin },
+  ]
+
+  const roleSelectIsPreset = ACCOUNT_ROLE_PRESETS.some((p) => p.value === form.role)
+
+  return (
+    <div className="relative min-h-full overflow-hidden bg-linear-to-b from-slate-50/90 via-white to-emerald-50/12">
+      {/* Ambient background */}
+      <div className="pointer-events-none absolute inset-0" aria-hidden>
+        <div className="absolute -right-24 top-0 h-80 w-80 rounded-full bg-emerald-300/15 blur-3xl" />
+        <div className="absolute -left-20 bottom-40 h-72 w-72 rounded-full bg-teal-200/20 blur-3xl" />
+        <div
+          className="absolute inset-0 opacity-[0.4]"
+          style={{
+            backgroundImage: `linear-gradient(to right, rgb(148 163 184 / 0.06) 1px, transparent 1px), linear-gradient(to bottom, rgb(148 163 184 / 0.06) 1px, transparent 1px)`,
+            backgroundSize: "56px 56px",
+          }}
+        />
       </div>
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="bg-transparent border-b rounded-none w-full justify-start px-0 h-auto pb-0">
-          {[
-            { value: "settings", label: "Profile", icon: User },
-            { value: "billing", label: "Billing", icon: CreditCard },
-            { value: "security", label: "Security", icon: Shield },
-            { value: "notifications", label: "Notifications", icon: Bell },
-            { value: "activity", label: "Activity", icon: Clock },
-          ].map((tab) => (
-            <TabsTrigger
-              key={tab.value}
-              value={tab.value}
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-green-600 data-[state=active]:text-green-700 data-[state=active]:shadow-none px-4 pb-3 pt-2 gap-1.5 text-sm"
+      <div className="relative z-10 mx-auto max-w-7xl px-3 py-8 sm:px-4 lg:px-6 lg:py-10">
+        {/* Page intro */}
+        <header className="mb-8 flex flex-col gap-6 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            
+            <h1 className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+              Overview
+            </h1>
+            <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-600">
+              Profile, security signals, and preferences—aligned with Supabase Auth and your workspace data.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-10 shrink-0 gap-2 rounded-xl border-slate-200 bg-white/80 shadow-sm backdrop-blur-sm hover:bg-white hover:border-emerald-200/80"
+            asChild
+          >
+            <Link href="/settings">
+              <Settings className="h-4 w-4" />
+              Preferences
+              <ArrowUpRight className="h-3.5 w-3.5 opacity-60" />
+            </Link>
+          </Button>
+        </header>
+
+        {/* Hero profile */}
+        <section className="mb-8 overflow-hidden rounded-3xl border border-slate-200/80 bg-white/85 shadow-[0_24px_48px_-20px_rgba(15,118,110,0.12)] backdrop-blur-md sm:mb-10">
+          <div className="relative h-36 sm:h-40">
+            <div
+              className={cn(
+                "absolute inset-0 bg-linear-to-br from-emerald-800 via-teal-700 to-emerald-950"
+              )}
+            />
+            <div
+              className="absolute inset-0 opacity-[0.12]"
+              style={{
+                backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+              }}
+            />
+            <div className="absolute inset-0 bg-linear-to-t from-black/25 to-transparent" />
+          </div>
+
+          <div className="relative px-5 pb-6 pt-0 sm:px-8">
+            <div className="-mt-6 pt-4 flex flex-col gap-6 sm:-mt-8 sm:pt-5 sm:flex-row sm:items-end sm:justify-between">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-6">
+                <div
+                  className={cn(
+                    "flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl border-4 border-white bg-white text-2xl font-bold tracking-tight text-emerald-800",
+                    "shadow-[0_20px_40px_-12px_rgba(15,118,110,0.35)]"
+                  )}
+                >
+                  {initials}
+                </div>
+                <div className="pb-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2 gap-y-1">
+                    <h2 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
+                      {name}
+                    </h2>
+                    <span
+                      className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-sky-600 text-white shadow-sm ring-2 ring-white"
+                      title="Verified"
+                      aria-label="Verified"
+                    >
+                      <Check className="h-3 w-3" strokeWidth={3} />
+                    </span>
+                  </div>
+                  <p className="mt-1.5 flex items-center gap-2 text-sm text-slate-600">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                      <Mail className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="truncate font-medium text-slate-700">{user.email ?? "—"}</span>
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-10 shrink-0 gap-2 rounded-xl border-slate-200 bg-white shadow-sm hover:border-emerald-300/80 hover:bg-emerald-50/50"
+                type="button"
+                onClick={handleEditProfileClick}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Edit profile
+              </Button>
+            </div>
+
+            {/* Stat bento */}
+            <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-5">
+              <div className="group rounded-2xl border border-slate-100 bg-linear-to-b from-slate-50/90 to-white p-4 shadow-sm transition-[box-shadow,transform] hover:shadow-md hover:-translate-y-0.5">
+                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  <User className="h-3.5 w-3.5 text-emerald-600/80" strokeWidth={2} />
+                  Role
+                </div>
+                <Select
+                  value={form.role}
+                  onValueChange={handleRoleChange}
+                  disabled={savingRole || savingProfile}
+                >
+                  <SelectTrigger
+                    aria-label="Account role"
+                    className="mt-2 h-9 w-full rounded-lg border-slate-200 bg-white text-left text-sm font-semibold text-slate-900 shadow-none hover:bg-slate-50/80"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ACCOUNT_ROLE_PRESETS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                    {!roleSelectIsPreset && form.role ? (
+                      <SelectItem value={form.role}>{roleOptionLabel(form.role)}</SelectItem>
+                    ) : null}
+                  </SelectContent>
+                </Select>
+                {savingRole ? (
+                  <p className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Saving…
+                  </p>
+                ) : (
+                  <p className="mt-1.5 text-[11px] text-slate-500">Saved to Auth metadata</p>
+                )}
+              </div>
+              {statItems.map((stat) => (
+                <div
+                  key={stat.label}
+                  className="group rounded-2xl border border-slate-100 bg-linear-to-b from-slate-50/90 to-white p-4 shadow-sm transition-[box-shadow,transform] hover:shadow-md hover:-translate-y-0.5"
+                >
+                  <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    <stat.icon className="h-3.5 w-3.5 text-emerald-600/80" strokeWidth={2} />
+                    {stat.label}
+                  </div>
+                  <p className="mt-2 text-sm font-semibold text-slate-900 line-clamp-2">{stat.value}</p>
+                </div>
+              ))}
+              <div className="group col-span-2 rounded-2xl border border-slate-100 bg-linear-to-br from-emerald-50/80 to-white p-4 shadow-sm transition-[box-shadow,transform] hover:shadow-md hover:-translate-y-0.5 lg:col-span-1">
+                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  <Globe className="h-3.5 w-3.5 text-emerald-600/80" strokeWidth={2} />
+                  Usage
+                </div>
+                <Progress value={0} className="mt-3 h-1.5 bg-slate-200/80" />
+                <p className="mt-2 text-xs text-slate-500">Storage not tracked</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Insight cards */}
+        <div className="mb-10 grid gap-4 md:grid-cols-3">
+          <article className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white/90 p-5 shadow-sm transition-all hover:border-blue-200/60 hover:shadow-lg hover:shadow-blue-500/5">
+            <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-blue-500/10 blur-2xl transition-opacity group-hover:opacity-100" />
+            <div className="relative flex items-start gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-blue-500/15 to-blue-600/5 text-blue-700 ring-1 ring-blue-500/10">
+                <CreditCard className="h-5 w-5" strokeWidth={1.75} />
+              </div>
+              <div>
+                <h3 className="font-semibold text-slate-900">Billing</h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                  Subscription and cards aren&apos;t stored in-app yet. When you set a <span className="font-medium text-slate-700">plan</span> in Supabase, it surfaces in your stats above.
+                </p>
+              </div>
+            </div>
+          </article>
+
+          <article className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white/90 p-5 shadow-sm transition-all hover:border-emerald-200/60 hover:shadow-lg hover:shadow-emerald-500/5">
+            <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-emerald-500/10 blur-2xl transition-opacity group-hover:opacity-100" />
+            <div className="relative flex items-start gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-emerald-500/15 to-teal-500/5 text-emerald-800 ring-1 ring-emerald-500/10">
+                <Monitor className="h-5 w-5" strokeWidth={1.75} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-semibold text-slate-900">Sessions</h3>
+                <dl className="mt-3 space-y-2 text-sm">
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-slate-500">Last sign-in</dt>
+                    <dd className="font-medium text-slate-800 tabular-nums">{formatMediumDate(lastSignIn)}</dd>
+                  </div>
+                  {lastSignIn ? (
+                    <div className="flex flex-col gap-0.5 border-t border-slate-100 pt-2">
+                      <dt className="text-xs text-slate-400">Full timestamp</dt>
+                      <dd className="text-xs text-slate-600 wrap-break-word">{formatDateTime(lastSignIn)}</dd>
+                    </div>
+                  ) : null}
+                </dl>
+              </div>
+            </div>
+          </article>
+
+          <article className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white/90 p-5 shadow-sm transition-all hover:border-amber-200/60 hover:shadow-lg hover:shadow-amber-500/5">
+            <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-amber-500/10 blur-2xl transition-opacity group-hover:opacity-100" />
+            <div className="relative flex items-start gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-amber-500/12 to-orange-500/5 text-amber-900 ring-1 ring-amber-500/10">
+                <Shield className="h-5 w-5" strokeWidth={1.75} />
+              </div>
+              <div>
+                <h3 className="font-semibold text-slate-900">Security</h3>
+                <ul className="mt-3 space-y-2.5 text-sm">
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className={cn("h-4 w-4 shrink-0", emailVerified ? "text-emerald-600" : "text-slate-300")} />
+                    <span className={emailVerified ? "text-slate-700" : "text-slate-500"}>
+                      {emailVerified ? "Email verified" : "Email not verified"}
+                    </span>
+                  </li>
+                  <li className="flex items-center gap-2 text-slate-700">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                    Password via Supabase Auth
+                  </li>
+                  <li className="flex items-start gap-2 text-slate-500">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-slate-300" />
+                    <span>2FA: configure in Supabase Dashboard</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        {/* Tabs + content */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <div className="mb-8 overflow-x-auto pb-1">
+            <TabsList className="inline-flex h-auto w-auto min-w-0 flex-wrap gap-1 rounded-2xl border border-slate-200/80 bg-slate-100/60 p-1.5 shadow-inner">
+              {[
+                { value: "settings", label: "Profile", icon: User },
+                { value: "billing", label: "Billing", icon: CreditCard },
+                { value: "security", label: "Security", icon: Shield },
+                { value: "notifications", label: "Notifications", icon: Bell },
+                { value: "activity", label: "Activity", icon: Clock },
+              ].map((tab) => (
+                <TabsTrigger
+                  key={tab.value}
+                  value={tab.value}
+                  className={cn(
+                    "gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600",
+                    "data-[state=active]:bg-white data-[state=active]:text-emerald-900 data-[state=active]:shadow-sm",
+                    "data-[state=active]:ring-1 data-[state=active]:ring-slate-200/80",
+                    "transition-all"
+                  )}
+                >
+                  <tab.icon className="h-4 w-4 opacity-70" />
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
+
+          <TabsContent value="settings" forceMount className="mt-0 outline-none data-[state=inactive]:hidden">
+            <div
+              ref={profileSectionRef}
+              id="overview-profile-form"
+              className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white/90 shadow-[0_8px_30px_-12px_rgba(15,23,42,0.08)]"
             >
-              <tab.icon className="h-3.5 w-3.5" />
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-
-        {/* ── Profile Settings ── */}
-        <TabsContent value="settings" className="mt-6">
-          <div className="rounded-xl border bg-card">
-            <div className="px-6 py-5 border-b">
-              <h3 className="text-base font-semibold">Profile Settings</h3>
-              <p className="text-sm text-muted-foreground mt-0.5">Update your personal information</p>
-            </div>
-            <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Full name</Label>
-                  <Input defaultValue="Jane Doe" className="h-10" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Email address</Label>
-                  <Input type="email" defaultValue="jane@example.com" className="h-10" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Phone number</Label>
-                  <Input placeholder="+63 9xx xxx xxxx" className="h-10" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Job title</Label>
-                  <Input defaultValue="Accountant" className="h-10" />
-                </div>
-                <div className="space-y-1.5 md:col-span-2">
-                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Company</Label>
-                  <Input defaultValue="Petrosphere Inc." className="h-10" />
-                </div>
+              <div className="border-b border-slate-100 bg-linear-to-r from-slate-50/80 to-white px-6 py-6 sm:px-8">
+                <h3 className="text-lg font-semibold text-slate-900">Profile & contact</h3>
+                <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-slate-600">
+                  Saved to <strong className="font-medium text-slate-800">Supabase Auth</strong> user metadata. Values from <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-mono text-slate-700">public.profiles</code> still show when present.
+                </p>
               </div>
-              <div className="flex justify-end mt-6 pt-4 border-t">
-                <Button className="h-9 text-sm bg-green-600 hover:bg-green-700 text-white">Save Changes</Button>
-              </div>
-            </div>
-          </div>
-        </TabsContent>
-
-        {/* ── Billing ── */}
-        <TabsContent value="billing" className="mt-6 space-y-5">
-          <div className="rounded-xl border bg-card">
-            <div className="px-6 py-5 border-b">
-              <h3 className="text-base font-semibold">Current Plan</h3>
-              <p className="text-sm text-muted-foreground mt-0.5">Your subscription details and payment method</p>
-            </div>
-            <div className="p-6">
-              <div className="flex items-center justify-between p-4 rounded-lg border bg-green-50/50 mb-5">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold">Premium Plan</span>
-                    <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100 text-xs">Active</Badge>
+              <div className="p-6 sm:p-8">
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Full name</Label>
+                    <Input
+                      className="h-11 rounded-xl border-slate-200 bg-slate-50/50 shadow-inner shadow-slate-900/2 focus-visible:border-emerald-400/60 focus-visible:ring-emerald-500/20"
+                      value={form.fullName}
+                      onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))}
+                    />
                   </div>
-                  <p className="text-sm text-muted-foreground mt-1">Renews on <strong>May 1, 2025</strong></p>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Email</Label>
+                    <Input
+                      type="email"
+                      className="h-11 rounded-xl border-slate-200 bg-slate-100/60"
+                      value={form.email}
+                      readOnly
+                    />
+                    <p className="text-xs text-slate-500">Managed by Supabase Auth.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Phone</Label>
+                    <Input
+                      className="h-11 rounded-xl border-slate-200 bg-slate-50/50 shadow-inner shadow-slate-900/2 focus-visible:border-emerald-400/60 focus-visible:ring-emerald-500/20"
+                      placeholder="+63 ···"
+                      value={form.phone}
+                      onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Job title</Label>
+                    <Input
+                      className="h-11 rounded-xl border-slate-200 bg-slate-50/50 shadow-inner shadow-slate-900/2 focus-visible:border-emerald-400/60 focus-visible:ring-emerald-500/20"
+                      value={form.jobTitle}
+                      onChange={(e) => setForm((f) => ({ ...f, jobTitle: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Role</Label>
+                    <Select
+                      value={form.role}
+                      onValueChange={(v) => setForm((f) => ({ ...f, role: v }))}
+                      disabled={savingProfile || savingRole}
+                    >
+                      <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-slate-50/50 shadow-inner shadow-slate-900/2 focus-visible:border-emerald-400/60 focus-visible:ring-emerald-500/20">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ACCOUNT_ROLE_PRESETS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                        {!roleSelectIsPreset && form.role ? (
+                          <SelectItem value={form.role}>{roleOptionLabel(form.role)}</SelectItem>
+                        ) : null}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-slate-500">
+                      Included when you save changes (same as the Role card above).
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Location</Label>
+                    <Input
+                      className="h-11 rounded-xl border-slate-200 bg-slate-50/50 shadow-inner shadow-slate-900/2 focus-visible:border-emerald-400/60 focus-visible:ring-emerald-500/20"
+                      value={form.location}
+                      onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Company</Label>
+                    <Input
+                      className="h-11 rounded-xl border-slate-200 bg-slate-50/50 shadow-inner shadow-slate-900/2 focus-visible:border-emerald-400/60 focus-visible:ring-emerald-500/20"
+                      value={form.company}
+                      onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))}
+                    />
+                  </div>
                 </div>
-                <Button variant="outline" size="sm" className="h-9 text-sm">Change Plan</Button>
+                <div className="mt-8 flex flex-col-reverse gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:justify-end">
+                  <Button
+                    type="button"
+                    className="h-11 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 px-8 font-semibold text-white shadow-lg shadow-emerald-900/15 hover:from-emerald-500 hover:to-teal-500"
+                    onClick={handleSaveProfile}
+                    disabled={savingProfile}
+                  >
+                    {savingProfile ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving…
+                      </>
+                    ) : (
+                      "Save changes"
+                    )}
+                  </Button>
+                </div>
               </div>
+            </div>
+          </TabsContent>
 
-              <div className="space-y-3">
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payment method</h4>
-                <div className="flex items-center justify-between p-4 rounded-lg border">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-7 rounded bg-slate-800 flex items-center justify-center text-white text-xs font-bold">VISA</div>
+          <TabsContent value="billing" className="mt-0 outline-none">
+            <div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white/90 shadow-[0_8px_30px_-12px_rgba(15,23,42,0.08)]">
+              <div className="border-b border-slate-100 px-6 py-6 sm:px-8">
+                <h3 className="text-lg font-semibold text-slate-900">Plan & payments</h3>
+                <p className="mt-1 text-sm text-slate-600">Connect billing when you&apos;re ready—data layer is prepared for it.</p>
+              </div>
+              <div className="p-6 sm:p-8">
+                <div className="rounded-2xl border border-emerald-100 bg-linear-to-br from-emerald-50/90 to-white p-5 sm:p-6">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-base font-semibold text-slate-900">
+                      {planLabel !== "—" ? `${planLabel} plan` : "No plan on file"}
+                    </span>
+                    <Badge className="rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800">Active</Badge>
+                  </div>
+                  <p className="mt-3 text-sm leading-relaxed text-slate-600">
+                    Set <code className="rounded bg-white/80 px-1.5 py-0.5 text-xs">plan</code> on{" "}
+                    <code className="rounded bg-white/80 px-1.5 py-0.5 text-xs">public.profiles</code> or wire Stripe later.
+                  </p>
+                </div>
+                <div className="mt-6">
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Payment method</h4>
+                  <p className="mt-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-5 text-sm text-slate-600">
+                    No payment methods in PetroBook yet. Persist card hints on profiles or your billing provider when you integrate.
+                  </p>
+                </div>
+                <div className="mt-8 flex flex-wrap gap-2 border-t border-slate-100 pt-6">
+                  <Button variant="outline" size="sm" className="h-10 rounded-xl gap-2" type="button" disabled>
+                    <Download className="h-4 w-4" />
+                    Download invoice
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-10 rounded-xl" type="button" disabled>
+                    Billing history
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="security" className="mt-0 outline-none">
+            <div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white/90 shadow-[0_8px_30px_-12px_rgba(15,23,42,0.08)]">
+              <div className="border-b border-slate-100 px-6 py-6 sm:px-8">
+                <h3 className="text-lg font-semibold text-slate-900">Security</h3>
+                <p className="mt-1 text-sm text-slate-600">Core auth is handled by Supabase.</p>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {[
+                  {
+                    icon: Lock,
+                    title: "Password",
+                    description: `Last sign-in: ${formatDateTime(lastSignIn)}`,
+                    action: (
+                      <Button variant="outline" size="sm" className="h-9 rounded-xl text-sm" type="button" disabled>
+                        Change password
+                      </Button>
+                    ),
+                  },
+                  {
+                    icon: Smartphone,
+                    title: "Two-factor authentication",
+                    description: "Configure MFA under Supabase Auth settings.",
+                    action: (
+                      <Badge variant="secondary" className="rounded-lg text-xs">
+                        Supabase
+                      </Badge>
+                    ),
+                  },
+                  {
+                    icon: Key,
+                    title: "Recovery email",
+                    description: user.email ?? "—",
+                    action: (
+                      <Button variant="outline" size="sm" className="h-9 rounded-xl text-sm" type="button" disabled>
+                        Update
+                      </Button>
+                    ),
+                  },
+                  {
+                    icon: Eye,
+                    title: "Sessions",
+                    description: "Last activity time is listed above.",
+                    action: (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 rounded-xl text-sm text-red-600 border-red-200 hover:bg-red-50"
+                        type="button"
+                        disabled
+                      >
+                        Sign out everywhere
+                      </Button>
+                    ),
+                  },
+                ].map((item, i) => (
+                  <div key={i} className="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+                    <div className="flex min-w-0 gap-4">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+                        <item.icon className="h-5 w-5" strokeWidth={1.75} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-medium text-slate-900">{item.title}</p>
+                        <p className="text-sm text-slate-500 wrap-break-word">{item.description}</p>
+                      </div>
+                    </div>
+                    <div className="shrink-0 pl-15 sm:pl-0">{item.action}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="notifications" className="mt-0 outline-none">
+            <div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white/90 shadow-[0_8px_30px_-12px_rgba(15,23,42,0.08)]">
+              <div className="border-b border-slate-100 px-6 py-6 sm:px-8">
+                <h3 className="text-lg font-semibold text-slate-900">Notifications</h3>
+                <p className="mt-1 text-sm text-slate-600">Preferences are local UI for now.</p>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {[
+                  { title: "Email notifications", description: "Account activity summaries" },
+                  { title: "Invoice reminders", description: "Before due dates" },
+                  { title: "Payment alerts", description: "When payments post" },
+                  { title: "Security alerts", description: "Unusual sign-in activity" },
+                  { title: "Product updates", description: "Features and tips" },
+                ].map((pref, i) => (
+                  <div key={pref.title} className="flex items-center justify-between gap-4 px-6 py-4 sm:px-8">
                     <div>
-                      <p className="text-sm font-medium">•••• •••• •••• 4242</p>
-                      <p className="text-xs text-muted-foreground">Expires 12/2026</p>
+                      <p className="font-medium text-slate-900">{pref.title}</p>
+                      <p className="text-sm text-slate-500">{pref.description}</p>
                     </div>
+                    <Switch defaultChecked={i < 4} />
                   </div>
-                  <Button variant="ghost" size="sm" className="text-sm">Update</Button>
-                </div>
-              </div>
-
-              <div className="flex gap-2 mt-5 pt-4 border-t">
-                <Button variant="outline" size="sm" className="h-9 text-sm gap-2">
-                  <Download className="h-3.5 w-3.5" />
-                  Download Invoice
-                </Button>
-                <Button variant="ghost" size="sm" className="h-9 text-sm">View Billing History</Button>
+                ))}
               </div>
             </div>
-          </div>
-        </TabsContent>
+          </TabsContent>
 
-        {/* ── Security ── */}
-        <TabsContent value="security" className="mt-6 space-y-5">
-          <div className="rounded-xl border bg-card">
-            <div className="px-6 py-5 border-b">
-              <h3 className="text-base font-semibold">Security Settings</h3>
-              <p className="text-sm text-muted-foreground mt-0.5">Manage your authentication and access</p>
-            </div>
-            <div className="divide-y">
-              {[
-                {
-                  icon: Lock, title: "Password", description: "Last changed October 12, 2025",
-                  action: <Button variant="outline" size="sm" className="h-9 text-sm">Change Password</Button>,
-                },
-                {
-                  icon: Smartphone, title: "Two-Factor Authentication", description: "Adds an extra layer of security to your account",
-                  action: (
-                    <div className="flex items-center gap-2">
-                      <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100 text-xs">Enabled</Badge>
-                      <Button variant="ghost" size="sm" className="h-9 text-sm">Configure</Button>
-                    </div>
-                  ),
-                },
-                {
-                  icon: Key, title: "Recovery Email", description: "Used to recover your account if you lose access",
-                  action: <Button variant="outline" size="sm" className="h-9 text-sm">Update</Button>,
-                },
-                {
-                  icon: Eye, title: "Active Sessions", description: "Manage devices where you're currently logged in",
-                  action: <Button variant="outline" size="sm" className="h-9 text-sm text-red-600 border-red-200 hover:bg-red-50">Sign Out All</Button>,
-                },
-              ].map((item, i) => (
-                <div key={i} className="flex items-center justify-between px-6 py-4">
-                  <div className="flex items-center gap-4">
-                    <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                      <item.icon className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">{item.title}</p>
-                      <p className="text-xs text-muted-foreground">{item.description}</p>
-                    </div>
+          <TabsContent value="activity" className="mt-0 outline-none">
+            <div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white/90 shadow-[0_8px_30px_-12px_rgba(15,23,42,0.08)]">
+              <div className="border-b border-slate-100 px-6 py-6 sm:px-8">
+                <h3 className="text-lg font-semibold text-slate-900">Recent activity</h3>
+                <p className="mt-1 text-sm text-slate-600">Latest sign-in from Supabase Auth.</p>
+              </div>
+              <div className="p-6 sm:p-8">
+                <div className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200/80 text-blue-600">
+                    <Monitor className="h-5 w-5" strokeWidth={1.75} />
                   </div>
-                  {item.action}
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-slate-900">Signed in</p>
+                    <p className="text-sm text-slate-500">Supabase session</p>
+                  </div>
+                  <span className="text-xs font-medium tabular-nums text-slate-500 sm:text-sm">
+                    {formatDateTime(lastSignIn)}
+                  </span>
                 </div>
-              ))}
+              </div>
             </div>
-          </div>
-        </TabsContent>
-
-        {/* ── Notifications ── */}
-        <TabsContent value="notifications" className="mt-6">
-          <div className="rounded-xl border bg-card">
-            <div className="px-6 py-5 border-b">
-              <h3 className="text-base font-semibold">Notification Preferences</h3>
-              <p className="text-sm text-muted-foreground mt-0.5">Choose how and when you want to be notified</p>
-            </div>
-            <div className="divide-y">
-              {[
-                { title: "Email Notifications", description: "Receive email updates for account activity" },
-                { title: "Invoice Reminders", description: "Get reminders before invoices are due" },
-                { title: "Payment Alerts", description: "Notify when payments are received" },
-                { title: "Security Alerts", description: "Alert on new login from unknown device" },
-                { title: "Marketing & Updates", description: "Product news and feature announcements" },
-              ].map((pref, i) => (
-                <div key={i} className="flex items-center justify-between px-6 py-4">
-                  <div>
-                    <p className="text-sm font-medium">{pref.title}</p>
-                    <p className="text-xs text-muted-foreground">{pref.description}</p>
-                  </div>
-                  <Switch defaultChecked={i < 4} />
-                </div>
-              ))}
-            </div>
-          </div>
-        </TabsContent>
-
-        {/* ── Activity ── */}
-        <TabsContent value="activity" className="mt-6">
-          <div className="rounded-xl border bg-card">
-            <div className="px-6 py-5 border-b">
-              <h3 className="text-base font-semibold">Recent Activity</h3>
-              <p className="text-sm text-muted-foreground mt-0.5">Your latest account activity and events</p>
-            </div>
-            <div className="divide-y">
-              {[
-                { action: "Logged in from Chrome", detail: "New York, USA", time: "Nov 19, 2025 · 3:42 PM", type: "login" },
-                { action: "Invoice #INV-1042 created", detail: "PHP 12,500.00", time: "Nov 18, 2025 · 11:20 AM", type: "invoice" },
-                { action: "Profile updated", detail: "Email address changed", time: "Nov 16, 2025 · 9:15 AM", type: "profile" },
-                { action: "Payment received", detail: "PHP 7,000.00 from ELIZA", time: "Nov 15, 2025 · 2:30 PM", type: "payment" },
-                { action: "Logged in from Safari", detail: "Los Angeles, USA", time: "Nov 14, 2025 · 10:05 AM", type: "login" },
-                { action: "Bill #BILL-089 paid", detail: "PHP 3,200.00", time: "Nov 12, 2025 · 4:18 PM", type: "payment" },
-                { action: "New supplier added", detail: "2GO Express", time: "Nov 10, 2025 · 1:45 PM", type: "profile" },
-                { action: "Password changed", detail: "Security update", time: "Oct 12, 2025 · 8:00 AM", type: "security" },
-              ].map((event, i) => (
-                <div key={i} className="flex items-center gap-4 px-6 py-3.5">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                    event.type === "login" ? "bg-blue-50 text-blue-600" :
-                    event.type === "invoice" ? "bg-green-50 text-green-600" :
-                    event.type === "payment" ? "bg-emerald-50 text-emerald-600" :
-                    event.type === "security" ? "bg-orange-50 text-orange-600" :
-                    "bg-muted text-muted-foreground"
-                  }`}>
-                    {event.type === "login" && <Monitor className="h-3.5 w-3.5" />}
-                    {event.type === "invoice" && <CreditCard className="h-3.5 w-3.5" />}
-                    {event.type === "payment" && <CheckCircle2 className="h-3.5 w-3.5" />}
-                    {event.type === "security" && <Shield className="h-3.5 w-3.5" />}
-                    {event.type === "profile" && <User className="h-3.5 w-3.5" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">{event.action}</p>
-                    <p className="text-xs text-muted-foreground">{event.detail}</p>
-                  </div>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">{event.time}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </TabsContent>
-      </Tabs>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   )
 }

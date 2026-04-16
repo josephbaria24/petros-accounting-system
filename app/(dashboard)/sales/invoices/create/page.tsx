@@ -150,33 +150,6 @@ export default function CreateInvoicePage() {
   const handleCodeSelect = (codeValue: string) => {
     setSelectedCode(codeValue);
     setShowCodeSelector(false);
-
-    if (codeValue && codeValue !== "none") {
-      const code = codes.find(c => c.code === codeValue);
-      if (!code) return;
-
-      const alreadyAdded = items.some(
-        (item) => item.productService === code.code || item.productService === code.name
-      );
-      if (alreadyAdded) return;
-
-      const hasEmptyFirstRow =
-        items.length === 1 &&
-        !items[0].productService &&
-        !items[0].description &&
-        items[0].rate === 0;
-
-      if (hasEmptyFirstRow) {
-        setItems([
-          { ...items[0], productService: code.code, description: code.name },
-        ]);
-      } else {
-        setItems((prev) => [
-          ...prev,
-          { serviceDate: "", productService: code.code, description: code.name, quantity: 1, rate: 0, tax: 0, class: "" },
-        ]);
-      }
-    }
   };
 
   useEffect(() => {
@@ -793,36 +766,42 @@ const reviewAndSend = async () => {
   // Add this return statement after the reviewAndSend function
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      {/* Main Content Area */}
-      <div className={`flex-1 overflow-y-auto ${showCodeSelector ? 'overflow-hidden' : ''}`}>
-        <div className="p-6 lg:px-10 lg:py-8 max-w-full mx-auto space-y-6">
-          {/* Header */}
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => window.history.back()}
-                className="h-9 w-9 rounded-full shrink-0"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-              <div>
-                <h1 className="text-xl font-semibold">Invoice</h1>
-                <p className="text-xs text-muted-foreground">Create and send an invoice to your customer</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 px-4 py-2 bg-muted/50 rounded-lg border">
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Balance due</span>
-              <span className="text-lg font-bold text-green-700">₱{total.toFixed(2)}</span>
+    <div className="bg-linear-to-b from-slate-50 via-white to-white">
+      {/* Header (sticky) */}
+      <header className="border-b border-slate-200/70 bg-white/85 backdrop-blur-xl">
+        <div className="w-full px-4 py-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => window.history.back()}
+              className="h-10 w-10 rounded-full shrink-0 border border-slate-200/70 bg-white/80 shadow-sm hover:bg-white"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight text-slate-900">Create invoice</h1>
+              <p className="text-sm text-slate-600">Create and send an invoice to your customer.</p>
             </div>
           </div>
+        </div>
+      </header>
 
-          {/* MAIN CONTENT */}
-          <div className="bg-card border rounded-xl shadow-sm">
+      <div className="flex min-h-full">
+        {/* Main Content Area */}
+        <div className={`flex-1 ${showCodeSelector ? 'overflow-hidden' : ''}`}>
+          <div className="w-full px-4 py-6 sm:px-6 lg:px-8 lg:py-8 space-y-6">
+            {/* MAIN CONTENT */}
+            <div className="bg-white border border-slate-200/80 rounded-3xl shadow-[0_20px_55px_-30px_rgba(15,23,42,0.25)] overflow-hidden">
+            {/* ─── Balance Due Badge ─── */}
+            <div className="flex items-center justify-end px-6 pt-5 sm:px-8">
+              <div className="flex items-center gap-2 px-4 py-2 rounded-2xl border border-emerald-200/70 bg-emerald-50/70 shadow-sm">
+                <span className="text-xs font-semibold uppercase tracking-wide text-emerald-900/70">Balance due</span>
+                <span className="text-lg font-bold text-emerald-800 tabular-nums">₱{total.toFixed(2)}</span>
+              </div>
+            </div>
             {/* ─── Customer Section ─── */}
-            <div className="p-6 space-y-4">
+            <div className="p-6 sm:p-8 space-y-4">
               <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_auto] gap-4 items-end">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Customer</Label>
@@ -834,7 +813,7 @@ const reviewAndSend = async () => {
                 </div>
                 <div className="flex items-end pb-0.5">
                   {!showCcBcc ? (
-                    <button onClick={() => setShowCcBcc(true)} className="text-sm font-medium text-green-700 hover:text-green-800 hover:underline whitespace-nowrap">+ Cc/Bcc</button>
+                    <button onClick={() => setShowCcBcc(true)} className="text-sm font-medium text-emerald-700 hover:text-emerald-800 hover:underline whitespace-nowrap" type="button">+ Cc/Bcc</button>
                   ) : (
                     <Input type="text" placeholder="Cc/Bcc (comma separated)" value={ccBcc} onChange={(e) => setCcBcc(e.target.value)} className="h-10 w-[280px]" />
                   )}
@@ -843,45 +822,42 @@ const reviewAndSend = async () => {
 
               {customerId && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50/40 p-4 space-y-2 shadow-inner shadow-slate-900/5">
                     <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
-                      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Bill to</span>
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                      <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Bill to</span>
                     </div>
-                    <Textarea value={billingAddress} onChange={(e) => setBillingAddress(e.target.value)} className="min-h-[90px] resize-none bg-card" />
-                    <button onClick={() => (window.location.href = `/sales/customers/${customerId}/edit`)} className="text-xs text-green-700 hover:text-green-800 hover:underline">Edit customer</button>
+                    <Textarea value={billingAddress} onChange={(e) => setBillingAddress(e.target.value)} className="min-h-[90px] resize-none bg-white rounded-xl border-slate-200 shadow-sm" />
+                    <button onClick={() => (window.location.href = `/sales/customers/${customerId}/edit`)} className="text-xs font-medium text-emerald-700 hover:text-emerald-800 hover:underline" type="button">Edit customer</button>
                   </div>
                   {showShipTo && (
-                    <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/40 p-4 space-y-2 shadow-inner shadow-slate-900/5">
                       <div className="flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
-                        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ship to</span>
+                        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Ship to</span>
                       </div>
-                      <Textarea value={shippingAddress} onChange={(e) => setShippingAddress(e.target.value)} className="min-h-[90px] resize-none bg-card" />
+                      <Textarea value={shippingAddress} onChange={(e) => setShippingAddress(e.target.value)} className="min-h-[90px] resize-none bg-white rounded-xl border-slate-200 shadow-sm" />
                     </div>
                   )}
                 </div>
               )}
             </div>
 
-            <div className="border-t" />
+            <div className="border-t border-slate-200/70" />
 
             {/* ─── Invoice Details ─── */}
-            <div className="p-6">
+            <div className="p-6 sm:p-8">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-4">
                 {/* Left column */}
                 <div className="space-y-4">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Project / Training Code</Label>
-                    {selectedCode && (
-                      <div className="flex items-center gap-2 mb-1 bg-green-50 text-green-800 px-3 py-1.5 rounded-md border border-green-100 text-sm">
-                        <span className="font-semibold">{selectedCode}</span>
-                        <span className="text-green-600">— {codes.find(c => c.code === selectedCode)?.name}</span>
-                        <button onClick={() => setSelectedCode("")} className="ml-auto hover:bg-green-100 rounded-full p-0.5"><X className="h-3.5 w-3.5" /></button>
-                      </div>
-                    )}
-                    <Select value={selectedCode} onValueChange={handleCodeSelect}>
-                      <SelectTrigger className="h-10"><SelectValue placeholder="Select code" /></SelectTrigger>
+                    <div className="flex items-center gap-2">
+                      <div className="min-w-0 flex-1">
+                        <Select value={selectedCode} onValueChange={handleCodeSelect}>
+                          <SelectTrigger className="h-11 min-w-[260px]">
+                            <SelectValue placeholder="Select code" />
+                          </SelectTrigger>
                       <SelectContent>
                         {codes.map((code) => (
                           <SelectItem key={code.id} value={code.code}>
@@ -892,8 +868,23 @@ const reviewAndSend = async () => {
                           </SelectItem>
                         ))}
                       </SelectContent>
-                    </Select>
-                    <button onClick={() => setShowCodeSelector(true)} className="text-xs text-green-700 hover:text-green-800 hover:underline">Manage codes</button>
+                        </Select>
+                      </div>
+                      {selectedCode ? (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-10 w-10 shrink-0"
+                          type="button"
+                          onClick={() => setSelectedCode("")}
+                          aria-label="Clear selected code"
+                          title="Clear"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      ) : null}
+                    </div>
+                    <button onClick={() => setShowCodeSelector(true)} className="text-xs text-green-700 hover:text-green-800 hover:underline" type="button">Manage codes</button>
                   </div>
 
                   <div className="space-y-1.5">
@@ -963,21 +954,21 @@ const reviewAndSend = async () => {
               </div>
             </div>
 
-            <div className="border-t" />
+            <div className="border-t border-slate-200/70" />
 
             {/* ─── Product / Service Table ─── */}
-            <div className="p-6">
+            <div className="p-6 sm:p-8">
               <div className="flex items-center gap-2 mb-3">
-                <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Product or service</h3>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Products & services</h3>
               </div>
-              <div className="border rounded-lg overflow-hidden">
-                <div className="w-full overflow-x-auto">
-                  <table className="w-full table-fixed">
+              <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white">
+                <div className="w-full overflow-x-auto lg:overflow-x-visible">
+                  <table className="w-full table-auto">
                     <thead>
-                      <tr className="bg-muted/50 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      <tr className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                         <th className="px-3 py-2.5 text-left" style={{width: 44}}>#</th>
-                        {showServiceDate && <th className="px-3 py-2.5 text-left" style={{width: 180}}>Service date</th>}
+                        {showServiceDate && <th className="px-3 py-2.5 text-left" style={{width: 150}}>Service date</th>}
                         {showProductService && <th className="px-3 py-2.5 text-left">Product/service</th>}
                         <th className="px-3 py-2.5 text-left">Description</th>
                         <th className="px-3 py-2.5 text-left" style={{width: 80}}>Qty</th>
@@ -989,38 +980,38 @@ const reviewAndSend = async () => {
                     </thead>
                     <tbody>
                       {items.map((item, i) => (
-                        <tr key={i} className="border-t group hover:bg-muted/30 transition-colors">
+                        <tr key={i} className="border-t border-slate-200/70 group hover:bg-slate-50/70 transition-colors">
                           <td className="px-3 py-2">
-                            <span className="text-xs text-muted-foreground font-medium">{i + 1}</span>
+                            <span className="text-xs text-slate-500 font-medium">{i + 1}</span>
                           </td>
                           {showServiceDate && (
                             <td className="px-3 py-2">
-                              <Input type="date" value={item.serviceDate} onChange={(e) => updateItem(i, "serviceDate", e.target.value)} className="h-9 text-sm" />
+                              <Input type="date" value={item.serviceDate} onChange={(e) => updateItem(i, "serviceDate", e.target.value)} className="h-10 text-sm rounded-xl border-slate-200 bg-white shadow-sm" />
                             </td>
                           )}
                           {showProductService && (
                             <td className="px-3 py-2">
-                              <Input value={item.productService} placeholder="Product/Service" onChange={(e) => updateItem(i, "productService", e.target.value)} className="h-9 text-sm" />
+                              <Input value={item.productService} placeholder="Product / Service" onChange={(e) => updateItem(i, "productService", e.target.value)} className="h-10 text-sm rounded-xl border-slate-200 bg-white shadow-sm min-w-0 w-full" />
                             </td>
                           )}
                           <td className="px-3 py-2">
-                            <Input value={item.description} placeholder="Description" onChange={(e) => updateItem(i, "description", e.target.value)} className="h-9 text-sm" />
+                            <Input value={item.description} placeholder="Description" onChange={(e) => updateItem(i, "description", e.target.value)} className="h-10 text-sm rounded-xl border-slate-200 bg-white shadow-sm min-w-0 w-full" />
                           </td>
                           <td className="px-3 py-2">
-                            <Input type="number" value={item.quantity} onChange={(e) => updateItem(i, "quantity", parseFloat(e.target.value) || 0)} className="h-9 text-sm" />
+                            <Input type="number" value={item.quantity} onChange={(e) => updateItem(i, "quantity", parseFloat(e.target.value) || 0)} className="h-10 text-sm rounded-xl border-slate-200 bg-white shadow-sm" />
                           </td>
                           <td className="px-3 py-2">
-                            <Input type="number" value={item.rate} onChange={(e) => updateItem(i, "rate", parseFloat(e.target.value) || 0)} className="h-9 text-sm" />
+                            <Input type="number" value={item.rate} onChange={(e) => updateItem(i, "rate", parseFloat(e.target.value) || 0)} className="h-10 text-sm rounded-xl border-slate-200 bg-white shadow-sm" />
                           </td>
                           <td className="px-3 py-2 text-right">
-                            <span className="text-sm font-semibold">₱{((item.quantity * item.rate) * (1 + item.tax / 100)).toFixed(2)}</span>
+                            <span className="text-sm font-semibold tabular-nums text-slate-900">₱{((item.quantity * item.rate) * (1 + item.tax / 100)).toFixed(2)}</span>
                           </td>
                           <td className="px-3 py-2">
-                            <Input value={item.class} placeholder="Class" onChange={(e) => updateItem(i, "class", e.target.value)} className="h-9 text-sm" />
+                            <Input value={item.class} placeholder="Class" onChange={(e) => updateItem(i, "class", e.target.value)} className="h-10 text-sm rounded-xl border-slate-200 bg-white shadow-sm" />
                           </td>
                           <td className="px-3 py-2">
                             {items.length > 1 && (
-                              <Button variant="ghost" size="sm" onClick={() => removeItem(i)} className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500">
+                              <Button variant="ghost" size="sm" onClick={() => removeItem(i)} className="h-9 w-9 rounded-xl p-0 opacity-0 group-hover:opacity-100 transition-opacity text-slate-500 hover:text-red-600 hover:bg-red-50" type="button">
                                 <X className="h-4 w-4" />
                               </Button>
                             )}
@@ -1030,12 +1021,12 @@ const reviewAndSend = async () => {
                     </tbody>
                   </table>
                 </div>
-                <div className="flex items-center gap-2 px-3 py-2.5 border-t bg-muted/20">
-                  <Button variant="ghost" size="sm" onClick={addItem} className="h-8 text-xs font-medium text-green-700 hover:text-green-800 hover:bg-green-50">
+                <div className="flex items-center gap-2 px-3 py-2.5 border-t border-slate-200/70 bg-slate-50/60">
+                  <Button variant="ghost" size="sm" onClick={addItem} className="h-9 text-xs font-semibold text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50" type="button">
                     <Plus className="h-3.5 w-3.5 mr-1.5" />
                     Add line
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={clearAllLines} className="h-8 text-xs font-medium text-muted-foreground hover:text-foreground">
+                  <Button variant="ghost" size="sm" onClick={clearAllLines} className="h-9 text-xs font-medium text-slate-500 hover:text-slate-900" type="button">
                     Clear all
                   </Button>
                 </div>
@@ -1185,12 +1176,12 @@ const reviewAndSend = async () => {
               <ChevronDown className="h-3.5 w-3.5" />
             </Button>
           </div>
+          </div>
         </div>
-      </div>
 
-      {/* Right Side Settings Panel */}
-      {showSettings && (
-        <div className="w-[320px] border-l bg-card overflow-y-auto shrink-0">
+        {/* Right Side Settings Panel */}
+        {showSettings && (
+          <div className="w-[320px] border-l bg-card shrink-0 self-start">
           <div className="p-5 space-y-5">
             {/* Header */}
             <div className="flex items-center justify-between">
@@ -1261,19 +1252,20 @@ const reviewAndSend = async () => {
               )}
             </div>
           </div>
-        </div>
-      )}
+          </div>
+        )}
 
-      {/* Floating Settings Button */}
-      {!showSettings && (
-        <Button
-          onClick={() => setShowSettings(true)}
-          className="fixed right-6 top-24 rounded-full shadow-lg bg-green-600 hover:bg-green-700 text-white"
-          size="icon"
-        >
-          <Settings className="h-5 w-5" />
-        </Button>
-      )}
+        {/* Floating Settings Button */}
+        {!showSettings && (
+          <Button
+            onClick={() => setShowSettings(true)}
+            className="fixed right-6 top-24 rounded-full shadow-lg bg-green-600 hover:bg-green-700 text-white"
+            size="icon"
+          >
+            <Settings className="h-5 w-5" />
+          </Button>
+        )}
+      </div> {/* end flex row */}
 
       {/* Manage Tags Modal */}
       {/* Manage Codes Modal */}

@@ -98,20 +98,27 @@ export default async function Dashboard() {
   // Calculate metrics
   const currentRevenue = currentMonthPayments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0
   const lastRevenue = lastMonthPayments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0
-  const revenueGrowth = lastRevenue > 0 ? ((currentRevenue - lastRevenue) / lastRevenue * 100).toFixed(1) : "0"
+  const revenueGrowthPct =
+    lastRevenue === 0
+      ? (currentRevenue > 0 ? 100 : 0)
+      : ((currentRevenue - lastRevenue) / lastRevenue) * 100
 
   const paidInvoicesThisMonth = currentMonthInvoices?.filter(inv => inv.status === 'paid').length || 0
   const paidInvoicesLastMonth = lastMonthInvoices?.filter(inv => inv.status === 'paid').length || 0
-  const invoiceGrowth = paidInvoicesLastMonth > 0 ? paidInvoicesThisMonth - paidInvoicesLastMonth : paidInvoicesThisMonth
+  const paidInvoiceGrowthPct =
+    paidInvoicesLastMonth === 0
+      ? (paidInvoicesThisMonth > 0 ? 100 : 0)
+      : ((paidInvoicesThisMonth - paidInvoicesLastMonth) / paidInvoicesLastMonth) * 100
 
   const totalUnpaid = invoices?.filter(inv => inv.status === 'unpaid' || inv.status === 'overdue')
     .reduce((sum, inv) => sum + Number(inv.balance_due || inv.total_amount), 0) || 0
 
   const customersThisMonth = newCustomersThisMonth ?? 0
   const customersLastMonth = newCustomersLastMonth ?? 0
-  const customerGrowth = customersLastMonth > 0 
-    ? ((customersThisMonth - customersLastMonth) / customersLastMonth * 100).toFixed(1) 
-    : customersThisMonth > 0 ? "100" : "0"
+  const customerGrowthPct =
+    customersLastMonth === 0
+      ? (customersThisMonth > 0 ? 100 : 0)
+      : ((customersThisMonth - customersLastMonth) / customersLastMonth) * 100
     
   // Recent invoices with customer info
   const { data: recentInvoices } = await supabase
@@ -505,13 +512,13 @@ export default async function Dashboard() {
     {
       title: "Monthly Revenue",
       value: `₱${currentRevenue.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      description: `${Number(revenueGrowth) >= 0 ? '+' : ''}${revenueGrowth}% from last month`,
+      description: `${revenueGrowthPct >= 0 ? '+' : ''}${revenueGrowthPct.toFixed(1)}% from last month`,
       icon: DollarSign,
     },
     {
       title: "Paid Invoices",
       value: paidInvoicesThisMonth.toString(),
-      description: `${invoiceGrowth >= 0 ? '+' : ''}${invoiceGrowth} from last month`,
+      description: `${paidInvoiceGrowthPct >= 0 ? '+' : ''}${paidInvoiceGrowthPct.toFixed(1)}% from last month`,
       icon: FileText,
     },
     {
@@ -523,7 +530,7 @@ export default async function Dashboard() {
     {
       title: "Total Customers",
       value: totalCustomers?.toString() || "0",
-      description: `${Number(customerGrowth) >= 0 ? '+' : ''}${customerGrowth}% growth this month`,
+      description: `${customerGrowthPct >= 0 ? '+' : ''}${customerGrowthPct.toFixed(1)}% growth this month`,
       icon: Users,
     },
   ]
@@ -566,7 +573,7 @@ export default async function Dashboard() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <CalendarDateRangePicker />
-          <Link href="/invoices/new">
+          <Link href="/sales/invoices/create">
             <Button className="bg-emerald-600 hover:bg-emerald-700">
               <Plus className="mr-2 h-4 w-4" />
               New Invoice

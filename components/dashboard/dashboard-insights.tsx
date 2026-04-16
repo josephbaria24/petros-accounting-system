@@ -98,7 +98,11 @@ const chartConfig = {
 } satisfies ChartConfig
 
 function donutColor(name: string) {
-  switch (name?.toLowerCase()) {
+  const key = (name || "").trim().toLowerCase()
+  if (!key) return "var(--chart-1)"
+
+  // Keep a few familiar mappings, but ensure everything else gets a stable distinct color.
+  switch (key) {
     case "rent":
       return "var(--chart-3)"
     case "utilities":
@@ -107,9 +111,21 @@ function donutColor(name: string) {
       return "var(--chart-5)"
     case "supplies":
       return "var(--chart-2)"
-    default:
-      return "var(--chart-1)"
   }
+
+  // Deterministic string hash -> pick from palette.
+  let h = 0
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0
+
+  const palette = [
+    "var(--chart-1)",
+    "var(--chart-2)",
+    "var(--chart-3)",
+    "var(--chart-4)",
+    "var(--chart-5)",
+  ] as const
+
+  return palette[h % palette.length]
 }
 
 export function DashboardInsights(props: DashboardInsightsProps) {
