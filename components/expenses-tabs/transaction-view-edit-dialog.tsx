@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { FileText, X, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PaymentMethodSelect } from "./payment-method-select";
 
 type Supplier = { id: string; name: string };
 type Code = { id: string; code: string; name: string };
@@ -367,13 +368,13 @@ export function TransactionViewEditDialog({
                 <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Payment method
                 </Label>
-                <Input
-                  className="h-10"
+                <PaymentMethodSelect
                   value={expenseEdit.payment_method}
-                  readOnly={readOnly}
-                  onChange={(e) =>
-                    setExpenseEdit((p) => ({ ...p, payment_method: e.target.value }))
+                  onValueChange={(val) =>
+                    !readOnly && setExpenseEdit((p) => ({ ...p, payment_method: val }))
                   }
+                  idPrefix="txn-expense"
+                  disabled={readOnly}
                 />
               </div>
 

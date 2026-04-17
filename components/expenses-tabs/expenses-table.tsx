@@ -4,6 +4,14 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase-client";
 import { fetchAllPaged } from "@/lib/supabase-fetch-all";
+import {
+  fetchLedgerRawNetByAccount,
+  fetchPaymentAccountsForExpense,
+  type PaymentAccountRow,
+} from "@/lib/payment-account-balances";
+import { PaymentAccountSelect } from "./payment-account-select";
+import { PaymentMethodSelect } from "./payment-method-select";
+import { postExpenseToLedger } from "@/lib/expense-journal";
 import { TransactionViewEditDialog } from "./transaction-view-edit-dialog";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -101,7 +109,7 @@ export default function ExpensesDashboard() {
 
   // Pay Bills dialog state
   const [showPayBills, setShowPayBills] = useState(false);
-  const [payBillsAccount, setPayBillsAccount] = useState("cash-on-hand");
+  const [payBillsAccount, setPayBillsAccount] = useState("");
   const [payBillsDate, setPayBillsDate] = useState(new Date().toISOString().split("T")[0]);
   const [payBillsRef, setPayBillsRef] = useState("");
   const [payBillsSelected, setPayBillsSelected] = useState<Set<string>>(new Set());
@@ -152,7 +160,7 @@ export default function ExpensesDashboard() {
   const [showExpenseDialog, setShowExpenseDialog] = useState(false);
   const [expenseFormData, setExpenseFormData] = useState({
     payee_id: "",
-    payment_account: "cash-on-hand",
+    payment_account: "",
     payment_date: new Date().toISOString().split("T")[0],
     payment_method: "",
     ref_no: "",
@@ -165,9 +173,49 @@ export default function ExpensesDashboard() {
 
   const supabase = createClient();
 
+  const [paymentAccountsList, setPaymentAccountsList] = useState<PaymentAccountRow[]>([]);
+  const [ledgerRawByAccount, setLedgerRawByAccount] = useState<Record<string, number>>({});
+  const [paymentBalancesLoading, setPaymentBalancesLoading] = useState(false);
+
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (!showExpenseDialog && !showPayBills) return;
+    let cancelled = false;
+    setPaymentBalancesLoading(true);
+    (async () => {
+      try {
+        const [accounts, rawMap] = await Promise.all([
+          fetchPaymentAccountsForExpense(supabase),
+          fetchLedgerRawNetByAccount(supabase),
+        ]);
+        if (cancelled) return;
+        setPaymentAccountsList(accounts);
+        setLedgerRawByAccount(rawMap);
+        const firstId = accounts[0]?.id ?? "";
+        if (showExpenseDialog) {
+          setExpenseFormData((prev) => ({
+            ...prev,
+            payment_account: accounts.some((a) => a.id === prev.payment_account)
+              ? prev.payment_account
+              : firstId,
+          }));
+        }
+        if (showPayBills) {
+          setPayBillsAccount((prev) =>
+            accounts.some((a) => a.id === prev) ? prev : firstId,
+          );
+        }
+      } finally {
+        if (!cancelled) setPaymentBalancesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showExpenseDialog, showPayBills]);
 
 
 
@@ -397,38 +445,84 @@ export default function ExpensesDashboard() {
   const handleSaveExpense = async () => {
     try {
       const subtotal = expenseFormData.items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+      if (expenseFormData.items.length === 0 || subtotal <= 0) {
+        toast({
+          title: "Add line items",
+          description: "Enter at least one category line with an amount greater than zero.",
+          variant: "destructive",
+        });
+        return;
+      }
 
-      const { error } = await supabase.from("expenses").insert([{
-        vendor_id: expenseFormData.payee_id || null,
-        category: expenseFormData.items[0]?.category || null,
-        amount: subtotal,
-        payment_method: expenseFormData.payment_method || null,
-        notes: expenseFormData.memo || null,
-        created_at: expenseFormData.payment_date,
-      }]);
+      const { data: expenseRow, error } = await supabase
+        .from("expenses")
+        .insert([
+          {
+            vendor_id: expenseFormData.payee_id || null,
+            category: expenseFormData.items[0]?.category || null,
+            amount: subtotal,
+            payment_method: expenseFormData.payment_method || null,
+            payment_account_id: expenseFormData.payment_account || null,
+            notes: expenseFormData.memo || null,
+            created_at: expenseFormData.payment_date,
+          },
+        ])
+        .select("id")
+        .single();
 
       if (error) throw error;
+      if (!expenseRow?.id) throw new Error("Expense was not assigned an id.");
 
-      toast({ title: "Success", description: "Expense created successfully!" });
+      const payId = expenseFormData.payment_account?.trim();
+      if (payId) {
+        try {
+          await postExpenseToLedger(supabase, {
+            expenseId: expenseRow.id,
+            paymentAccountId: payId,
+            entryDate: expenseFormData.payment_date,
+            memo: expenseFormData.memo,
+            lines: expenseFormData.items,
+          });
+          toast({
+            title: "Expense saved",
+            description: "Recorded in the ledger: expense debited, payment account credited.",
+          });
+        } catch (je: unknown) {
+          await supabase.from("expenses").delete().eq("id", expenseRow.id);
+          const msg = je instanceof Error ? je.message : "Ledger posting failed.";
+          toast({ title: "Could not complete expense", description: msg, variant: "destructive" });
+          return;
+        }
+      } else {
+        toast({
+          title: "Expense saved",
+          description: "No payment account selected — cash/bank balance unchanged. Pick a payment account to post automatically.",
+        });
+      }
+
       setShowExpenseDialog(false);
 
       // Reset
       setExpenseFormData({
         payee_id: "",
-        payment_account: "cash-on-hand",
+        payment_account: "",
         payment_date: new Date().toISOString().split("T")[0],
         payment_method: "",
         ref_no: "",
         location: "Head Office - Puerto Princesa City",
         tags: "",
         memo: "",
-        items: [{ category: "", description: "", amount: 0 }]
+        items: [{ category: "", description: "", amount: 0 }],
       });
 
       fetchData();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error saving expense:", error);
-      toast({ title: "Error", description: error?.message ?? "Failed to save expense.", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to save expense.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -952,11 +1046,12 @@ export default function ExpensesDashboard() {
 
               <div>
                 <Label>Payment method</Label>
-                <Input
+                <PaymentMethodSelect
                   value={expenseEdit.payment_method}
-                  onChange={(e) =>
-                    setExpenseEdit((p) => ({ ...p, payment_method: e.target.value }))
+                  onValueChange={(val) =>
+                    setExpenseEdit((p) => ({ ...p, payment_method: val }))
                   }
+                  idPrefix="expense-edit"
                 />
               </div>
 
@@ -1431,23 +1526,17 @@ export default function ExpensesDashboard() {
             {/* Payment details */}
             <div className="px-6 py-5">
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 min-w-0">
                   <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payment account</Label>
-                  <Select value={payBillsAccount} onValueChange={setPayBillsAccount}>
-                    <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="cash-on-hand">Cash on hand</SelectItem>
-                      <SelectItem value="checking">Checking</SelectItem>
-                      <SelectItem value="savings">Savings</SelectItem>
-                      <SelectItem value="petty-cash">Petty Cash</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Balance: PHP{(() => {
-                      const balances: Record<string, string> = { "cash-on-hand": "0.00", "checking": "0.00", "savings": "0.00", "petty-cash": "0.00" };
-                      return balances[payBillsAccount] || "0.00";
-                    })()}
-                  </p>
+                  <PaymentAccountSelect
+                    value={payBillsAccount}
+                    onValueChange={setPayBillsAccount}
+                    accounts={paymentAccountsList}
+                    ledgerRawByAccount={ledgerRawByAccount}
+                    loading={paymentBalancesLoading}
+                    idPrefix="pay-bills"
+                    balancePosition="below"
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payment date</Label>
@@ -1653,18 +1742,19 @@ export default function ExpensesDashboard() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 min-w-0">
                   <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payment account</Label>
-                  <Select value={expenseFormData.payment_account} onValueChange={(val) => setExpenseFormData({ ...expenseFormData, payment_account: val })}>
-                    <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="cash-on-hand">Cash on hand</SelectItem>
-                      <SelectItem value="checking">Checking</SelectItem>
-                      <SelectItem value="savings">Savings</SelectItem>
-                      <SelectItem value="petty-cash">Petty Cash</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">Balance: -PHP4,457,511.76</p>
+                  <PaymentAccountSelect
+                    value={expenseFormData.payment_account}
+                    onValueChange={(val) =>
+                      setExpenseFormData({ ...expenseFormData, payment_account: val })
+                    }
+                    accounts={paymentAccountsList}
+                    ledgerRawByAccount={ledgerRawByAccount}
+                    loading={paymentBalancesLoading}
+                    idPrefix="new-expense"
+                    balancePosition="inline"
+                  />
                 </div>
               </div>
             </div>
@@ -1680,18 +1770,13 @@ export default function ExpensesDashboard() {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payment method</Label>
-                  <Select value={expenseFormData.payment_method} onValueChange={(val) => setExpenseFormData({ ...expenseFormData, payment_method: val })}>
-                    <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="cash">Cash</SelectItem>
-                      <SelectItem value="check">Check</SelectItem>
-                      <SelectItem value="credit-card">Credit Card</SelectItem>
-                      <SelectItem value="gcash">GCash</SelectItem>
-                      <SelectItem value="paymaya">PayMaya</SelectItem>
-                      <SelectItem value="paypal">PayPal</SelectItem>
-                      <SelectItem value="bank-transfer">Bank Transfer</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <PaymentMethodSelect
+                    value={expenseFormData.payment_method}
+                    onValueChange={(val) =>
+                      setExpenseFormData({ ...expenseFormData, payment_method: val })
+                    }
+                    idPrefix="new-expense"
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ref no.</Label>
@@ -1721,9 +1806,18 @@ export default function ExpensesDashboard() {
 
             {/* ── Category Details Table ── */}
             <div className="px-6 py-5">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0" />
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Category details</h3>
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0" />
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Category details</h3>
+                </div>
+                <p className="text-[11px] text-muted-foreground max-w-xl sm:text-right">
+                  We match <span className="font-medium">Category</span> (or <span className="font-medium">Description</span>) to an{" "}
+                  <span className="font-medium text-foreground">expense</span> account in Chart of Accounts — exact name
+                  first, then a close partial match. Otherwise the line posts to{" "}
+                  <span className="font-medium">General expense</span>. Your payment account is{" "}
+                  <span className="font-medium">credited</span> for the total.
+                </p>
               </div>
 
               <div className="border rounded-lg overflow-hidden">

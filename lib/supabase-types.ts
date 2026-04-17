@@ -185,6 +185,7 @@ export interface Database {
           category: string | null
           amount: number
           payment_method: string | null
+          payment_account_id: string | null
           notes: string | null
           created_at: string | null
         }
@@ -194,6 +195,7 @@ export interface Database {
           category?: string | null
           amount: number
           payment_method?: string | null
+          payment_account_id?: string | null
           notes?: string | null
           created_at?: string | null
         }
@@ -203,6 +205,7 @@ export interface Database {
           category?: string | null
           amount?: number
           payment_method?: string | null
+          payment_account_id?: string | null
           notes?: string | null
           created_at?: string | null
         }

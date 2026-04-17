@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase-client";
 import { fetchAllPaged } from "@/lib/supabase-fetch-all";
 import { TransactionViewEditDialog } from "./transaction-view-edit-dialog";
+import { PaymentMethodSelect } from "./payment-method-select";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1289,21 +1290,13 @@ export default function BillsTable() {
             </div>
             <div>
               <Label>Payment method</Label>
-              <Select
-                value={payForm.payment_method}
-                onValueChange={(v) => setPayForm({ ...payForm, payment_method: v })}
-              >
-                <SelectTrigger className="mt-2">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
-                  <SelectItem value="Cash">Cash</SelectItem>
-                  <SelectItem value="Check">Check</SelectItem>
-                  <SelectItem value="Credit Card">Credit Card</SelectItem>
-                  <SelectItem value="Online Payment">Online Payment</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="mt-2">
+                <PaymentMethodSelect
+                  value={payForm.payment_method}
+                  onValueChange={(v) => setPayForm({ ...payForm, payment_method: v })}
+                  idPrefix="pay-bill"
+                />
+              </div>
             </div>
             <div>
               <Label>Payment account <span className="text-muted-foreground text-xs">(optional)</span></Label>
