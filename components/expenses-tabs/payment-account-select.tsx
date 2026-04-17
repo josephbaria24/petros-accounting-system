@@ -68,7 +68,7 @@ export function PaymentAccountSelect({
 
   const selectBlock = (
     <Select value={value || undefined} onValueChange={onValueChange}>
-      <SelectTrigger className="h-10 w-full min-w-0 border-green-600/40 bg-white">
+      <SelectTrigger className="h-10 w-full min-w-0 border-border bg-background shadow-none">
         {/* Leaf only — React 19 forbids children here when Select portals into this node */}
         <SelectValue placeholder="Select payment account" />
       </SelectTrigger>
@@ -128,13 +128,15 @@ export function PaymentAccountSelect({
 
   if (balancePosition === "inline") {
     return (
-      <div className="space-y-2">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:gap-3">
-          <div className="min-w-0 flex-1 space-y-2">{selectBlock}</div>
-          <p className="shrink-0 text-sm text-muted-foreground sm:pb-2">
-            Balance{" "}
-            <span className="font-semibold tabular-nums text-foreground">{balanceText}</span>
-          </p>
+      <div className="rounded-lg border border-border bg-muted/20 p-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-0">
+          <div className="min-w-0 flex-1">{selectBlock}</div>
+          <div className="flex shrink-0 flex-col justify-center border-t border-border/60 pt-3 sm:border-t-0 sm:border-l sm:pl-4 sm:pt-0">
+            <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              Book balance
+            </span>
+            <span className="text-sm font-semibold tabular-nums text-foreground">{balanceText}</span>
+          </div>
         </div>
       </div>
     );

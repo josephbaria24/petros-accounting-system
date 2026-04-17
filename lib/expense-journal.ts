@@ -8,13 +8,19 @@ type ExpAcct = { id: string; name: string };
 
 const MIN_SUB = 4;
 
+/** Compare QB-style labels like "Bank charges - PHP" to COA names with or without the ` - PHP` suffix. */
+function stripPhpExpenseSuffix(s: string): string {
+  return s.trim().replace(/\s*-\s*php\s*$/i, "").trim().toLowerCase();
+}
+
 /**
  * After an expense is saved: debit expense GL account(s), credit the payment account.
  *
  * Resolves each line to an `accounts` row with `type = 'expense'`:
  * 1. Exact match (case-insensitive) on **Category**, or **Description** if category is blank.
- * 2. Otherwise substring match (category/description contains account name or vice versa; min length {@link MIN_SUB}).
- * 3. Otherwise **General expense** (created if missing).
+ * 2. Same as (1) after normalizing a trailing ` - PHP` on the label and on account names.
+ * 3. Otherwise substring match (category/description contains account name or vice versa; min length {@link MIN_SUB}).
+ * 4. Otherwise **General expense** (created if missing).
  */
 export async function postExpenseToLedger(
   supabase: Client,
@@ -83,6 +89,13 @@ export async function postExpenseToLedger(
 
     const exact = byNorm.get(k);
     if (exact) return exact;
+
+    const kSans = stripPhpExpenseSuffix(label);
+    if (kSans) {
+      for (const a of expList) {
+        if (stripPhpExpenseSuffix(a.name) === kSans) return a.id;
+      }
+    }
 
     let bestId: string | null = null;
     let bestScore = 0;

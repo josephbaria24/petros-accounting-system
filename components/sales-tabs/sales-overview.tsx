@@ -71,8 +71,10 @@ export default function SalesOverview() {
       // Fetch payments
       const { data: payments } = await supabase.from("payments").select("*")
 
-      // Fetch customers
-      const { data: customers } = await supabase.from("customers").select("*")
+      // Fetch customers count (avoid PostgREST 1k row cap)
+      const { count: customersCount } = await supabase
+        .from("customers")
+        .select("*", { count: "exact", head: true })
 
       const totalPaid = payments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0
       const totalInvoiced = invoices?.reduce((sum, i) => sum + (i.total_amount || 0), 0) || 0
@@ -140,7 +142,7 @@ export default function SalesOverview() {
         totalInvoices: invoices?.length || 0,
         totalPaid,
         totalPayments: payments?.length || 0,
-        totalCustomers: customers?.length || 0,
+        totalCustomers: customersCount || 0,
         totalInvoiced,
         unpaidAmount: totalInvoiced - totalPaid,
       })
@@ -211,22 +213,27 @@ export default function SalesOverview() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
         {kpis.map((kpi) => (
-          <Card key={kpi.title} className="border-border/80 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b border-border/60 pb-3">
-              <div className="space-y-0.5">
-                <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {kpi.title}
-                </CardTitle>
-                <div className={`text-xl font-semibold tracking-tight tabular-nums ${kpi.valueClass || ""}`}>
+          <Card key={kpi.title} className="flex h-full flex-col border-border/80 shadow-sm">
+            <CardHeader className="flex shrink-0 flex-row items-start justify-between gap-2 space-y-0 border-b border-border/60 pb-3">
+              <div className="min-w-0 flex-1 space-y-1 pr-1">
+                <div className="min-h-11">
+                  <CardTitle className="line-clamp-2 text-left text-xs font-semibold uppercase leading-snug tracking-wide text-muted-foreground">
+                    {kpi.title}
+                  </CardTitle>
+                </div>
+                <div
+                  className={`text-left text-xl font-semibold tabular-nums leading-none tracking-tight ${kpi.valueClass || ""}`}
+                >
                   {kpi.value}
                 </div>
               </div>
-              <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 text-primary">
-                <kpi.icon className="h-4 w-4" />
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                <kpi.icon className="size-4 shrink-0" strokeWidth={1.5} aria-hidden />
               </div>
             </CardHeader>
-            <CardContent className="pt-4">
-              <p className="text-xs text-muted-foreground">{kpi.helper}</p>
+            <CardContent className="flex flex-1 flex-col pt-4">
+              <div className="min-h-2 flex-1 shrink-0" aria-hidden />
+              <p className="text-left text-xs leading-normal text-muted-foreground">{kpi.helper}</p>
             </CardContent>
           </Card>
         ))}

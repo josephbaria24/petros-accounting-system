@@ -130,7 +130,14 @@ export async function POST(req: Request) {
   const smtpUser = process.env.SMTP_USER?.trim();
   const smtpPass = process.env.SMTP_PASS;
   const smtpFromName = (process.env.SMTP_FROM_NAME?.trim() || "PetroBook").trim();
-  const smtpFromEmail = (process.env.SMTP_FROM_EMAIL?.trim() || smtpUser || "").trim();
+  // Only use SMTP_FROM_EMAIL when it is a real address. A non-empty but invalid value
+  // (common in hosted env placeholders) must not override SMTP_USER.
+  const smtpFromEmailRaw = process.env.SMTP_FROM_EMAIL?.trim();
+  const smtpFromEmail = (
+    parseOptionalSingleEmail(smtpFromEmailRaw) ||
+    smtpUser ||
+    ""
+  ).trim();
   const smtpSecure =
     (process.env.SMTP_SECURE?.trim().toLowerCase() === "true") ||
     smtpPort === 465;
@@ -168,7 +175,7 @@ export async function POST(req: Request) {
       {
         success: false,
         error:
-          "Email is not configured: SMTP_FROM_EMAIL must be a valid sender address (e.g. info@yourdomain.com) that your SMTP provider allows.",
+          "Email is not configured: set SMTP_FROM_EMAIL to a valid sender address your SMTP provider allows, or use an SMTP_USER that is a valid email address.",
       },
       { status: 400 }
     );

@@ -24,6 +24,7 @@ import {
 import { FileText, X, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PaymentMethodSelect } from "./payment-method-select";
+import { ExpenseCategorySelect } from "./expense-category-select";
 
 type Supplier = { id: string; name: string };
 type Code = { id: string; code: string; name: string };
@@ -336,14 +337,18 @@ export function TransactionViewEditDialog({
                 <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Category
                 </Label>
-                <Input
-                  className="h-10"
-                  value={expenseEdit.category}
-                  readOnly={readOnly}
-                  onChange={(e) =>
-                    setExpenseEdit((p) => ({ ...p, category: e.target.value }))
-                  }
-                />
+                {readOnly ? (
+                  <div className="h-10 flex items-center rounded-md border border-input bg-muted/30 px-3 text-sm">
+                    {expenseEdit.category?.trim() ? expenseEdit.category : "—"}
+                  </div>
+                ) : (
+                  <ExpenseCategorySelect
+                    value={expenseEdit.category}
+                    onValueChange={(name) => setExpenseEdit((p) => ({ ...p, category: name }))}
+                    idPrefix="txn-expense-cat"
+                    triggerClassName="h-10"
+                  />
+                )}
               </div>
 
               <div className="space-y-1.5">

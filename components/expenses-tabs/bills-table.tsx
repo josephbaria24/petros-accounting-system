@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase-client";
 import { fetchAllPaged } from "@/lib/supabase-fetch-all";
 import { TransactionViewEditDialog } from "./transaction-view-edit-dialog";
 import { PaymentMethodSelect } from "./payment-method-select";
+import { ExpenseCategorySelect } from "./expense-category-select";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -379,10 +380,16 @@ export default function BillsTable() {
       }
 
       const itemsToInsert = billFormData.items
-        .filter((item) => item.description.trim() || item.amount > 0)
+        .filter(
+          (item) =>
+            (item.description && item.description.trim()) ||
+            (item.category && item.category.trim()) ||
+            (item.amount || 0) > 0,
+        )
         .map((item) => ({
           bill_id: bill.id,
-          description: item.description.trim() || "—",
+          category: item.category?.trim() || null,
+          description: item.description?.trim() || "—",
           quantity: 1,
           unit_cost: item.amount || 0,
           tax_rate: 0,
@@ -1119,9 +1126,14 @@ export default function BillsTable() {
 
             {/* ── Category Details Table ── */}
             <div className="px-6 py-5">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Category details</h3>
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Category details</h3>
+                </div>
+                <p className="text-[11px] text-muted-foreground max-w-xl sm:text-right">
+                  Pick a <span className="font-medium text-foreground">category</span> from your expense list per line (same as new expense).
+                </p>
               </div>
 
               <div className="border rounded-lg overflow-hidden">
@@ -1143,7 +1155,11 @@ export default function BillsTable() {
                       <tr key={index} className="border-t group hover:bg-muted/30 transition-colors">
                         <td className="px-3 py-2"><span className="text-xs text-muted-foreground font-medium">{index + 1}</span></td>
                         <td className="px-3 py-2">
-                          <Input value={item.category} onChange={(e) => handleBillItemChange(index, "category", e.target.value)} placeholder="Category" className="h-9 text-sm" />
+                          <ExpenseCategorySelect
+                            value={item.category}
+                            onValueChange={(name) => handleBillItemChange(index, "category", name)}
+                            idPrefix={`new-bill-cat-${index}`}
+                          />
                         </td>
                         <td className="px-3 py-2">
                           <Input value={item.description} onChange={(e) => handleBillItemChange(index, "description", e.target.value)} placeholder="Description" className="h-9 text-sm" />

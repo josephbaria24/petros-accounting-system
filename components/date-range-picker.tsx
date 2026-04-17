@@ -11,9 +11,13 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 export function CalendarDateRangePicker({ className }: React.HTMLAttributes<HTMLDivElement>) {
-  const [date, setDate] = React.useState<DateRange | undefined>({
-    from: new Date(2023, 0, 20),
-    to: addDays(new Date(2023, 0, 20), 20),
+  const [date, setDate] = React.useState<DateRange | undefined>(() => {
+    const now = new Date()
+    return {
+      // Default to a useful "recent activity" range instead of a stale hardcoded year.
+      from: addDays(now, -30),
+      to: now,
+    }
   })
 
   return (

@@ -52,6 +52,19 @@ type InvoiceItem = {
   tax: number;
   class: string;
 };
+
+/** Label for invoice line Product/service from a training / project code row. */
+function productServiceLabelFromCode(
+  codeValue: string,
+  list: { code: string; name: string }[]
+) {
+  const meta = list.find((c) => c.code === codeValue);
+  if (!meta) return codeValue;
+  const name = meta.name?.trim();
+  const code = meta.code?.trim();
+  if (code && name) return `${code} — ${name}`;
+  return name || code || codeValue;
+}
 type CustomerAttachment = {
   id: string
   customer_id: string
@@ -151,6 +164,22 @@ export default function CreateInvoicePage() {
     setSelectedCode(codeValue);
     setShowCodeSelector(false);
   };
+
+  // When a code is chosen (or codes load after), fill Product/service on any line still blank.
+  // Re-runs when line count changes so "+ Add line" rows pick up the current code.
+  useEffect(() => {
+    if (!selectedCode || codes.length === 0) return;
+    const label = productServiceLabelFromCode(selectedCode, codes);
+    setItems((prev) => {
+      let changed = false;
+      const next = prev.map((row) => {
+        if (row.productService?.trim()) return row;
+        changed = true;
+        return { ...row, productService: label };
+      });
+      return changed ? next : prev;
+    });
+  }, [selectedCode, codes, items.length]);
 
   useEffect(() => {
     fetchCustomers();
@@ -612,7 +641,7 @@ const reviewAndSend = async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         to: ccBcc ? `${customerEmail},${ccBcc}` : customerEmail,
-        subject: `Invoice ${invoiceNo} from Your Company`,
+        subject: `Invoice ${invoiceNo} from Petrosphere Incorporated`,
         message: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #333;">Invoice ${invoiceNo}</h2>
@@ -638,7 +667,7 @@ const reviewAndSend = async () => {
             </table>
             <p style="margin: 20px 0;">${note}</p>
             <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
-            <p style="color: #666;">Best regards,<br/><strong>Your Company</strong></p>
+            <p style="color: #666;">Best regards,<br/><strong>Petrosphere Incorporated</strong></p>
           </div>
         `,
         attachments: [

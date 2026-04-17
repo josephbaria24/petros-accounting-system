@@ -11,6 +11,7 @@ import {
 } from "@/lib/payment-account-balances";
 import { PaymentAccountSelect } from "./payment-account-select";
 import { PaymentMethodSelect } from "./payment-method-select";
+import { ExpenseCategorySelect } from "./expense-category-select";
 import { postExpenseToLedger } from "@/lib/expense-journal";
 import { TransactionViewEditDialog } from "./transaction-view-edit-dialog";
 
@@ -372,13 +373,19 @@ export default function ExpensesDashboard() {
 
       // Insert bill items
       const itemsToInsert = billFormData.items
-        .filter(item => item.description || item.amount > 0)
-        .map(item => ({
+        .filter(
+          (item) =>
+            (item.description && String(item.description).trim()) ||
+            (item.category && String(item.category).trim()) ||
+            (item.amount || 0) > 0,
+        )
+        .map((item) => ({
           bill_id: bill.id,
-          description: item.description,
+          category: item.category?.trim() || null,
+          description: item.description?.trim() || "—",
           quantity: 1,
           unit_cost: item.amount,
-          tax_rate: 0
+          tax_rate: 0,
         }));
 
       if (itemsToInsert.length > 0) {
@@ -784,7 +791,13 @@ export default function ExpensesDashboard() {
     setShowTxnDialog(true);
   };
 
-
+  const newExpenseLineTotal = expenseFormData.items.reduce(
+    (sum, it) => sum + (Number(it.amount) || 0),
+    0,
+  );
+  const newExpenseTotalFormatted = newExpenseLineTotal.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+  });
 
   return (
     <div className="flex flex-col">
@@ -1022,11 +1035,13 @@ export default function ExpensesDashboard() {
 
               <div>
                 <Label>Category</Label>
-                <Input
+                <ExpenseCategorySelect
                   value={expenseEdit.category}
-                  onChange={(e) =>
-                    setExpenseEdit((p) => ({ ...p, category: e.target.value }))
+                  onValueChange={(name) =>
+                    setExpenseEdit((p) => ({ ...p, category: name }))
                   }
+                  idPrefix="inline-edit-expense-cat"
+                  triggerClassName="h-10"
                 />
               </div>
 
@@ -1268,218 +1283,413 @@ export default function ExpensesDashboard() {
       <Dialog open={showBillDialog} onOpenChange={setShowBillDialog}>
         <DialogContent
           showCloseButton={false}
-          className="w-[calc(100vw-2rem)] max-w-[1100px] max-h-[92vh] p-0 gap-0 overflow-hidden flex flex-col"
+          className="flex max-h-[92vh] w-[calc(100vw-2rem)] max-w-[1100px] flex-col gap-0 overflow-hidden rounded-xl border-border/80 p-0 shadow-xl"
         >
-          {/* ── Header ── */}
-          <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center text-white shrink-0">
-                <FileText className="h-4 w-4" />
-              </div>
-              <div>
-                <DialogTitle className="text-base font-semibold leading-tight">New Bill</DialogTitle>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {billFormData.bill_no || "No bill number"} · {suppliers.find(s => s.id === selectedSupplier)?.name || "No supplier"}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-lg border">
-                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Balance due</span>
-                <span className="text-lg font-bold text-green-700">
-                  PHP{billFormData.items.reduce((sum, item) => sum + (item.amount || 0), 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                </span>
-              </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => setShowBillDialog(false)}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+          {(() => {
+            const billLineTotal = billFormData.items.reduce(
+              (sum, item) => sum + (Number(item.amount) || 0),
+              0,
+            );
+            const billTotalFormatted = billLineTotal.toLocaleString("en-US", {
+              minimumFractionDigits: 2,
+            });
+            return (
+              <>
+                {/* Header */}
+                <div className="flex shrink-0 items-start justify-between gap-4 border-b border-border bg-background px-6 py-5">
+                  <div className="flex min-w-0 items-start gap-4">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/15">
+                      <FileText className="h-5 w-5" aria-hidden />
+                    </div>
+                    <div className="min-w-0 space-y-1">
+                      <DialogTitle className="text-lg font-semibold tracking-tight text-foreground">
+                        New bill
+                      </DialogTitle>
+                      <p className="text-sm text-muted-foreground">
+                        <span className="font-medium text-foreground">
+                          {suppliers.find((s) => s.id === selectedSupplier)?.name ||
+                            "No supplier"}
+                        </span>
+                        <span className="text-muted-foreground/80"> · </span>
+                        {billFormData.bill_no || "No bill number"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <div className="rounded-lg border border-border bg-muted/25 px-4 py-2.5 text-right">
+                      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                        Balance due
+                      </p>
+                      <p className="text-lg font-semibold tabular-nums tracking-tight text-foreground">
+                        PHP{billTotalFormatted}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+                      onClick={() => setShowBillDialog(false)}
+                      aria-label="Close"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
 
-          {/* ── Body ── */}
-          <div className="flex-1 overflow-y-auto">
+                {/* Body */}
+                <div className="flex-1 overflow-y-auto bg-muted/20">
+                  <div className="divide-y divide-border/80">
 
-            {/* Supplier */}
-            <div className="px-6 py-5 space-y-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Supplier</Label>
-                <Select value={selectedSupplier} onValueChange={setSelectedSupplier}>
-                  <SelectTrigger className="h-10"><SelectValue placeholder="Choose a supplier" /></SelectTrigger>
-                  <SelectContent>
-                    {suppliers.map((supplier) => (
-                      <SelectItem key={supplier.id} value={supplier.id}>{supplier.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+                    {/* Supplier */}
+                    <section className="space-y-4 bg-background px-6 py-6">
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor="new-bill-supplier"
+                          className="text-sm font-medium text-foreground"
+                        >
+                          Supplier
+                        </Label>
+                        <Select value={selectedSupplier} onValueChange={setSelectedSupplier}>
+                          <SelectTrigger id="new-bill-supplier" className="h-10 shadow-none">
+                            <SelectValue placeholder="Choose a supplier" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {suppliers.map((supplier) => (
+                              <SelectItem key={supplier.id} value={supplier.id}>
+                                {supplier.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </section>
 
-            <div className="border-t" />
+                    {/* Details */} 
+                    <section className="space-y-5 bg-background px-6 py-6">
+                      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                        <div className="space-y-2 lg:col-span-1">
+                          <Label className="text-sm font-medium text-foreground">
+                            Mailing address
+                          </Label>
+                          <Textarea
+                            className="min-h-[104px] resize-none rounded-lg border-border bg-background shadow-none"
+                            placeholder="Mailing address (optional)"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground">Bill no.</Label>
+                          <Input
+                            value={billFormData.bill_no}
+                            onChange={(e) =>
+                              setBillFormData({ ...billFormData, bill_no: e.target.value })
+                            }
+                            placeholder="Enter bill number"
+                            className="h-10 shadow-none"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground">Bill date</Label>
+                          <Input
+                            type="date"
+                            value={billFormData.bill_date}
+                            onChange={(e) =>
+                              setBillFormData({ ...billFormData, bill_date: e.target.value })
+                            }
+                            className="h-10 shadow-none"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground">Due date</Label>
+                          <Input
+                            type="date"
+                            value={billFormData.due_date}
+                            onChange={(e) =>
+                              setBillFormData({ ...billFormData, due_date: e.target.value })
+                            }
+                            className="h-10 shadow-none"
+                          />
+                        </div>
+                      </div>
 
-            {/* Form fields */}
-            <div className="px-6 py-5">
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="space-y-1.5 col-span-2 lg:col-span-1">
-                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Mailing address</Label>
-                  <Textarea className="min-h-[80px] resize-none" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Bill no.</Label>
-                  <Input value={billFormData.bill_no} onChange={(e) => setBillFormData({ ...billFormData, bill_no: e.target.value })} placeholder="Enter bill number" className="h-10" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Bill date</Label>
-                  <Input type="date" value={billFormData.bill_date} onChange={(e) => setBillFormData({ ...billFormData, bill_date: e.target.value })} className="h-10" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Due date</Label>
-                  <Input type="date" value={billFormData.due_date} onChange={(e) => setBillFormData({ ...billFormData, due_date: e.target.value })} className="h-10" />
-                </div>
-              </div>
+                      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground">Terms</Label>
+                          <Select
+                            value={billFormData.terms}
+                            onValueChange={(value) =>
+                              setBillFormData({ ...billFormData, terms: value })
+                            }
+                          >
+                            <SelectTrigger className="h-10 shadow-none">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Net 30">Net 30</SelectItem>
+                              <SelectItem value="Net 60">Net 60</SelectItem>
+                              <SelectItem value="Due on receipt">Due on receipt</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground">Location</Label>
+                          <Select
+                            value={billFormData.location}
+                            onValueChange={(val) =>
+                              setBillFormData({ ...billFormData, location: val })
+                            }
+                          >
+                            <SelectTrigger className="h-10 shadow-none">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Head Office - Puerto Princesa City">
+                                Head Office - Puerto Princesa City
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground">
+                            Project / Training code
+                          </Label>
+                          <Select value={selectedCode} onValueChange={setSelectedCode}>
+                            <SelectTrigger className="h-10 shadow-none">
+                              <SelectValue placeholder="Select code (optional)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">No code</SelectItem>
+                              {codes.map((code) => (
+                                <SelectItem key={code.id} value={code.code}>
+                                  <div className="flex flex-col items-start">
+                                    <span className="font-medium">{code.code}</span>
+                                    <span className="text-xs text-muted-foreground">{code.name}</span>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                              <div className="my-1 h-px bg-border" />
+                              <button
+                                type="button"
+                                className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setShowManageCodes(true);
+                                }}
+                              >
+                                Manage codes…
+                              </button>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </section>
 
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Terms</Label>
-                  <Select value={billFormData.terms} onValueChange={(value) => setBillFormData({ ...billFormData, terms: value })}>
-                    <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Net 30">Net 30</SelectItem>
-                      <SelectItem value="Net 60">Net 60</SelectItem>
-                      <SelectItem value="Due on receipt">Due on receipt</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Location</Label>
-                  <Select value={billFormData.location} onValueChange={(val) => setBillFormData({ ...billFormData, location: val })}>
-                    <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Head Office - Puerto Princesa City">Head Office - Puerto Princesa City</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Project / Training Code</Label>
-                  <Select value={selectedCode} onValueChange={setSelectedCode}>
-                    <SelectTrigger className="h-10"><SelectValue placeholder="Select code (optional)" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No code</SelectItem>
-                      {codes.map((code) => (
-                        <SelectItem key={code.id} value={code.code}>
-                          <div className="flex flex-col items-start">
-                            <span className="font-medium">{code.code}</span>
-                            <span className="text-xs text-muted-foreground">{code.name}</span>
+                    {/* Line items */}
+                    <section className="bg-background px-6 py-6">
+                      <div className="mb-4">
+                        <h3 className="text-sm font-semibold text-foreground">Line items</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Add one row per category. Amounts should match your bill total.
+                        </p>
+                      </div>
+
+                      <div className="overflow-hidden rounded-xl border border-border bg-background shadow-sm">
+                        <div className="overflow-x-auto">
+                          <table className="w-full min-w-[720px] table-fixed text-sm">
+                            <thead>
+                              <tr className="border-b border-border bg-muted/40">
+                                <th
+                                  className="px-3 py-3 text-left text-xs font-medium text-muted-foreground"
+                                  style={{ width: 40 }}
+                                >
+                                  #
+                                </th>
+                                <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground">
+                                  Category
+                                </th>
+                                <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground">
+                                  Description
+                                </th>
+                                <th
+                                  className="px-3 py-3 text-right text-xs font-medium text-muted-foreground"
+                                  style={{ width: 128 }}
+                                >
+                                  Amount (PHP)
+                                </th>
+                                <th
+                                  className="px-3 py-3 text-center text-xs font-medium text-muted-foreground"
+                                  style={{ width: 72 }}
+                                >
+                                  Billable
+                                </th>
+                                <th
+                                  className="px-3 py-3 text-left text-xs font-medium text-muted-foreground"
+                                  style={{ width: 132 }}
+                                >
+                                  Customer
+                                </th>
+                                <th
+                                  className="px-3 py-3 text-left text-xs font-medium text-muted-foreground"
+                                  style={{ width: 112 }}
+                                >
+                                  Class
+                                </th>
+                                <th style={{ width: 44 }} />
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {billFormData.items.map((item, index) => (
+                                <tr
+                                  key={index}
+                                  className="group border-b border-border/70 transition-colors last:border-0 hover:bg-muted/25"
+                                >
+                                  <td className="px-3 py-2.5 align-middle">
+                                    <span className="text-xs font-medium tabular-nums text-muted-foreground">
+                                      {index + 1}
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-2.5 align-middle">
+                                    <ExpenseCategorySelect
+                                      value={item.category}
+                                      onValueChange={(name) =>
+                                        handleBillItemChange(index, "category", name)
+                                      }
+                                      idPrefix={`bill-dialog-cat-${index}`}
+                                    />
+                                  </td>
+                                  <td className="px-3 py-2.5 align-middle">
+                                    <Input
+                                      value={item.description}
+                                      onChange={(e) =>
+                                        handleBillItemChange(index, "description", e.target.value)
+                                      }
+                                      placeholder="Description"
+                                      className="h-10 text-sm shadow-none"
+                                    />
+                                  </td>
+                                  <td className="px-3 py-2.5 align-middle">
+                                    <Input
+                                      type="number"
+                                      value={item.amount || ""}
+                                      onChange={(e) =>
+                                        handleBillItemChange(
+                                          index,
+                                          "amount",
+                                          parseFloat(e.target.value) || 0,
+                                        )
+                                      }
+                                      placeholder="0.00"
+                                      className="h-10 text-right text-sm tabular-nums shadow-none"
+                                    />
+                                  </td>
+                                  <td className="px-3 py-2.5 text-center align-middle">
+                                    <Checkbox />
+                                  </td>
+                                  <td className="px-3 py-2.5 align-middle">
+                                    <Input placeholder="Customer" className="h-10 text-sm shadow-none" />
+                                  </td>
+                                  <td className="px-3 py-2.5 align-middle">
+                                    <Input placeholder="Class" className="h-10 text-sm shadow-none" />
+                                  </td>
+                                  <td className="px-3 py-2.5 align-middle">
+                                    {billFormData.items.length > 1 && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleRemoveBillItem(index)}
+                                        className="h-9 w-9 p-0 opacity-0 transition-opacity group-hover:opacity-100 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                        aria-label="Remove line"
+                                      >
+                                        <Trash2Icon className="h-4 w-4" />
+                                      </Button>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1 border-t border-border bg-muted/25 px-3 py-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleAddBillItem}
+                            className="h-9 text-sm font-medium text-primary hover:bg-primary/10 hover:text-primary"
+                          >
+                            + Add line
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              setBillFormData({
+                                ...billFormData,
+                                items: [{ category: "", description: "", amount: 0 }],
+                              })
+                            }
+                            className="h-9 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                          >
+                            Clear all
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex justify-end">
+                        <div className="w-full max-w-[220px] space-y-2 border-t border-border pt-3 text-sm sm:mr-10">
+                          <div className="flex items-center justify-between gap-4">
+                            <span className="text-muted-foreground">Subtotal</span>
+                            <span className="font-medium tabular-nums text-foreground">
+                              PHP{billTotalFormatted}
+                            </span>
                           </div>
-                        </SelectItem>
-                      ))}
-                      <div className="my-1 h-px bg-border" />
-                      <button type="button" className="w-full px-2 py-1.5 text-left text-sm hover:bg-muted rounded-sm" onClick={(e) => { e.preventDefault(); setShowManageCodes(true); }}>
-                        Manage codes…
-                      </button>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-
-            <div className="border-t" />
-
-            {/* ── Category Details Table ── */}
-            <div className="px-6 py-5">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Category details</h3>
-              </div>
-
-              <div className="border rounded-lg overflow-hidden">
-                <table className="w-full table-fixed text-sm">
-                  <thead>
-                    <tr className="bg-muted/50 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      <th className="px-3 py-2.5 text-left" style={{width: 40}}>#</th>
-                      <th className="px-3 py-2.5 text-left">Category</th>
-                      <th className="px-3 py-2.5 text-left">Description</th>
-                      <th className="px-3 py-2.5 text-right" style={{width: 120}}>Amount (PHP)</th>
-                      <th className="px-3 py-2.5 text-center" style={{width: 70}}>Billable</th>
-                      <th className="px-3 py-2.5 text-left" style={{width: 130}}>Customer</th>
-                      <th className="px-3 py-2.5 text-left" style={{width: 110}}>Class</th>
-                      <th style={{width: 40}} />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {billFormData.items.map((item, index) => (
-                      <tr key={index} className="border-t group hover:bg-muted/30 transition-colors">
-                        <td className="px-3 py-2"><span className="text-xs text-muted-foreground font-medium">{index + 1}</span></td>
-                        <td className="px-3 py-2">
-                          <Input value={item.category} onChange={(e) => handleBillItemChange(index, "category", e.target.value)} placeholder="Category" className="h-9 text-sm" />
-                        </td>
-                        <td className="px-3 py-2">
-                          <Input value={item.description} onChange={(e) => handleBillItemChange(index, "description", e.target.value)} placeholder="Description" className="h-9 text-sm" />
-                        </td>
-                        <td className="px-3 py-2">
-                          <Input type="number" value={item.amount || ""} onChange={(e) => handleBillItemChange(index, "amount", parseFloat(e.target.value) || 0)} placeholder="0.00" className="h-9 text-sm text-right" />
-                        </td>
-                        <td className="px-3 py-2 text-center"><Checkbox /></td>
-                        <td className="px-3 py-2"><Input placeholder="Customer" className="h-9 text-sm" /></td>
-                        <td className="px-3 py-2"><Input placeholder="Class" className="h-9 text-sm" /></td>
-                        <td className="px-3 py-2">
-                          {billFormData.items.length > 1 && (
-                            <Button variant="ghost" size="sm" onClick={() => handleRemoveBillItem(index)} className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500">
-                              <Trash2Icon className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div className="flex items-center gap-2 px-3 py-2.5 border-t bg-muted/20">
-                  <Button variant="ghost" size="sm" onClick={handleAddBillItem} className="h-8 text-xs font-medium text-green-700 hover:text-green-800 hover:bg-green-50">
-                    + Add line
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setBillFormData({ ...billFormData, items: [{ category: "", description: "", amount: 0 }] })} className="h-8 text-xs font-medium text-muted-foreground hover:text-foreground">
-                    Clear all
-                  </Button>
-                </div>
-              </div>
-
-              {/* Totals */}
-              <div className="flex justify-end mt-4">
-                <div className="w-56 space-y-1.5 text-sm">
-                  <div className="flex justify-between py-1">
-                    <span className="text-muted-foreground">Subtotal</span>
-                    <span className="font-semibold">PHP{billFormData.items.reduce((sum, item) => sum + (item.amount || 0), 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
-                  </div>
-                  <div className="flex justify-between py-1.5 border-t font-bold text-base">
-                    <span>Total</span>
-                    <span>PHP{billFormData.items.reduce((sum, item) => sum + (item.amount || 0), 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                          <div className="flex items-center justify-between gap-4 border-t border-border pt-2 text-base font-semibold">
+                            <span>Total</span>
+                            <span className="tabular-nums">PHP{billTotalFormatted}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </section>
                   </div>
                 </div>
-              </div>
-            </div>
 
-          </div>
-
-          {/* ── Footer ── */}
-          <div className="flex items-center justify-between px-6 py-4 border-t bg-muted/20 shrink-0">
-            <Button variant="outline" className="h-9 text-sm" onClick={() => setShowBillDialog(false)}>Cancel</Button>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" className="h-9 text-sm">Print</Button>
-              <Button variant="outline" className="h-9 text-sm">Make recurring</Button>
-              <Button className="h-9 text-sm bg-green-600 hover:bg-green-700 text-white" onClick={handleSaveBill}>Save</Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button className="h-9 text-sm bg-green-600 hover:bg-green-700 text-white">
-                    Save and new
-                    <ChevronDown className="ml-1.5 h-3.5 w-3.5" />
+                {/* Footer */}
+                <div className="flex shrink-0 flex-col gap-3 border-t border-border bg-background px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <Button
+                    variant="outline"
+                    className="h-10 rounded-lg px-4"
+                    onClick={() => setShowBillDialog(false)}
+                  >
+                    Cancel
                   </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={handleSaveBill}>Save and new</DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleSaveBill}>Save and close</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <Button variant="outline" className="h-10 rounded-lg px-4 shadow-none">
+                      Print
+                    </Button>
+                    <Button variant="outline" className="h-10 rounded-lg px-4 shadow-none">
+                      Make recurring
+                    </Button>
+                    <Button
+                      className="h-10 rounded-lg bg-green-600 px-4 text-white shadow-none hover:bg-green-700"
+                      onClick={handleSaveBill}
+                    >
+                      Save
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button className="h-10 rounded-lg bg-green-600 px-4 text-white shadow-none hover:bg-green-700">
+                          Save and new
+                          <ChevronDown className="ml-1.5 h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={handleSaveBill}>Save and new</DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleSaveBill}>Save and close</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
@@ -1699,242 +1909,421 @@ export default function ExpensesDashboard() {
       <Dialog open={showExpenseDialog} onOpenChange={setShowExpenseDialog}>
         <DialogContent
           showCloseButton={false}
-          className="w-[calc(100vw-2rem)] max-w-[1100px] max-h-[92vh] p-0 gap-0 overflow-hidden flex flex-col"
+          className="flex max-h-[92vh] w-[calc(100vw-2rem)] max-w-[1100px] flex-col gap-0 overflow-hidden rounded-xl border-border/80 p-0 shadow-xl"
         >
-          {/* ── Header ── */}
-          <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-orange-600 flex items-center justify-center text-white shrink-0">
-                <Wallet className="h-4 w-4" />
-              </div>
-              <div>
-                <DialogTitle className="text-base font-semibold leading-tight">New Expense</DialogTitle>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {suppliers.find(s => s.id === expenseFormData.payee_id)?.name || "No payee"} · {expenseFormData.payment_date || "No date"}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-lg border">
-                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Amount</span>
-                <span className="text-lg font-bold text-orange-700">
-                  PHP{expenseFormData.items.reduce((sum, it) => sum + (Number(it.amount) || 0), 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                </span>
-              </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => setShowExpenseDialog(false)}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-
-          {/* ── Body ── */}
-          <div className="flex-1 overflow-y-auto">
-
-            {/* Payee & Payment account */}
-            <div className="px-6 py-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payee</Label>
-                  <Select value={expenseFormData.payee_id} onValueChange={(val) => setExpenseFormData({ ...expenseFormData, payee_id: val })}>
-                    <SelectTrigger className="h-10"><SelectValue placeholder="Who did you pay?" /></SelectTrigger>
-                    <SelectContent>
-                      {suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+          <>
+                {/* Header */}
+                <div className="flex shrink-0 items-start justify-between gap-4 border-b border-border bg-background px-6 py-5">
+                  <div className="flex min-w-0 items-start gap-4">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/15">
+                      <Wallet className="h-5 w-5" aria-hidden />
+                    </div>
+                    <div className="min-w-0 space-y-1">
+                      <DialogTitle className="text-lg font-semibold tracking-tight text-foreground">
+                        New expense
+                      </DialogTitle>
+                      <p className="text-sm text-muted-foreground">
+                        <span className="font-medium text-foreground">
+                          {suppliers.find((s) => s.id === expenseFormData.payee_id)?.name ||
+                            "No payee"}
+                        </span>
+                        <span className="text-muted-foreground/80"> · </span>
+                        {expenseFormData.payment_date || "No date"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <div className="rounded-lg border border-border bg-muted/25 px-4 py-2.5 text-right">
+                      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                        Total
+                      </p>
+                      <p className="text-lg font-semibold tabular-nums tracking-tight text-foreground">
+                        PHP{newExpenseTotalFormatted}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+                      onClick={() => setShowExpenseDialog(false)}
+                      aria-label="Close"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="space-y-1.5 min-w-0">
-                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payment account</Label>
-                  <PaymentAccountSelect
-                    value={expenseFormData.payment_account}
-                    onValueChange={(val) =>
-                      setExpenseFormData({ ...expenseFormData, payment_account: val })
-                    }
-                    accounts={paymentAccountsList}
-                    ledgerRawByAccount={ledgerRawByAccount}
-                    loading={paymentBalancesLoading}
-                    idPrefix="new-expense"
-                    balancePosition="inline"
-                  />
-                </div>
-              </div>
-            </div>
 
-            <div className="border-t" />
+                {/* Body */}
+                <div className="flex-1 overflow-y-auto bg-muted/20">
+                  <div className="divide-y divide-border/80">
+                    {/* Payee & payment account */}
+                    <section className="space-y-4 bg-background px-6 py-6">
+                      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="new-expense-payee" className="text-sm font-medium text-foreground">
+                            Payee
+                          </Label>
+                          <Select
+                            value={expenseFormData.payee_id}
+                            onValueChange={(val) =>
+                              setExpenseFormData({ ...expenseFormData, payee_id: val })
+                            }
+                          >
+                            <SelectTrigger id="new-expense-payee" className="h-10 shadow-none">
+                              <SelectValue placeholder="Who did you pay?" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {suppliers.map((s) => (
+                                <SelectItem key={s.id} value={s.id}>
+                                  {s.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="min-w-0 space-y-2">
+                          <Label className="text-sm font-medium text-foreground">
+                            Payment account
+                          </Label>
+                          <PaymentAccountSelect
+                            value={expenseFormData.payment_account}
+                            onValueChange={(val) =>
+                              setExpenseFormData({ ...expenseFormData, payment_account: val })
+                            }
+                            accounts={paymentAccountsList}
+                            ledgerRawByAccount={ledgerRawByAccount}
+                            loading={paymentBalancesLoading}
+                            idPrefix="new-expense"
+                            balancePosition="inline"
+                          />
+                        </div>
+                      </div>
+                    </section>
 
-            {/* Details row */}
-            <div className="px-6 py-5">
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payment date</Label>
-                  <Input type="date" value={expenseFormData.payment_date} onChange={(e) => setExpenseFormData({ ...expenseFormData, payment_date: e.target.value })} className="h-10" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payment method</Label>
-                  <PaymentMethodSelect
-                    value={expenseFormData.payment_method}
-                    onValueChange={(val) =>
-                      setExpenseFormData({ ...expenseFormData, payment_method: val })
-                    }
-                    idPrefix="new-expense"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ref no.</Label>
-                  <Input value={expenseFormData.ref_no} onChange={(e) => setExpenseFormData({ ...expenseFormData, ref_no: e.target.value })} className="h-10" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Location</Label>
-                  <Select value={expenseFormData.location} onValueChange={(val) => setExpenseFormData({ ...expenseFormData, location: val })}>
-                    <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Head Office - Puerto Princesa City">Head Office - Puerto Princesa City</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+                    {/* Date, method, ref, location, tags */}
+                    <section className="space-y-5 bg-background px-6 py-6">
+                      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground">Payment date</Label>
+                          <Input
+                            type="date"
+                            value={expenseFormData.payment_date}
+                            onChange={(e) =>
+                              setExpenseFormData({
+                                ...expenseFormData,
+                                payment_date: e.target.value,
+                              })
+                            }
+                            className="h-10 shadow-none"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground">
+                            Payment method
+                          </Label>
+                          <PaymentMethodSelect
+                            value={expenseFormData.payment_method}
+                            onValueChange={(val) =>
+                              setExpenseFormData({ ...expenseFormData, payment_method: val })
+                            }
+                            idPrefix="new-expense"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground">Ref no.</Label>
+                          <Input
+                            value={expenseFormData.ref_no}
+                            onChange={(e) =>
+                              setExpenseFormData({ ...expenseFormData, ref_no: e.target.value })
+                            }
+                            className="h-10 shadow-none"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground">Location</Label>
+                          <Select
+                            value={expenseFormData.location}
+                            onValueChange={(val) =>
+                              setExpenseFormData({ ...expenseFormData, location: val })
+                            }
+                          >
+                            <SelectTrigger className="h-10 shadow-none">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Head Office - Puerto Princesa City">
+                                Head Office - Puerto Princesa City
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <Label className="text-sm font-medium text-foreground">Tags</Label>
+                          <button
+                            type="button"
+                            className="text-sm font-medium text-primary hover:underline"
+                          >
+                            Manage tags
+                          </button>
+                        </div>
+                        <Input
+                          placeholder="Start typing to add a tag"
+                          value={expenseFormData.tags}
+                          onChange={(e) =>
+                            setExpenseFormData({ ...expenseFormData, tags: e.target.value })
+                          }
+                          className="h-10 shadow-none"
+                        />
+                      </div>
+                    </section>
 
-              <div className="mt-4 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tags</Label>
-                  <button className="text-xs text-green-600 font-semibold hover:underline">Manage tags</button>
+                    {/* Line items */}
+                    <section className="bg-background px-6 py-6">
+                      <div className="mb-4">
+                        <h3 className="text-sm font-semibold text-foreground">Line items</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Add one row per category. Amounts should match your receipt total.
+                        </p>
+                      </div>
+
+                      <div className="overflow-hidden rounded-xl border border-border bg-background shadow-sm">
+                        <div className="overflow-x-auto">
+                          <table className="w-full min-w-[720px] table-fixed text-sm">
+                            <thead>
+                              <tr className="border-b border-border bg-muted/40">
+                                <th
+                                  className="px-3 py-3 text-left text-xs font-medium text-muted-foreground"
+                                  style={{ width: 40 }}
+                                >
+                                  #
+                                </th>
+                                <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground">
+                                  Category
+                                </th>
+                                <th className="px-3 py-3 text-left text-xs font-medium text-muted-foreground">
+                                  Description
+                                </th>
+                                <th
+                                  className="px-3 py-3 text-right text-xs font-medium text-muted-foreground"
+                                  style={{ width: 128 }}
+                                >
+                                  Amount (PHP)
+                                </th>
+                                <th
+                                  className="px-3 py-3 text-center text-xs font-medium text-muted-foreground"
+                                  style={{ width: 72 }}
+                                >
+                                  Billable
+                                </th>
+                                <th
+                                  className="px-3 py-3 text-left text-xs font-medium text-muted-foreground"
+                                  style={{ width: 132 }}
+                                >
+                                  Customer
+                                </th>
+                                <th
+                                  className="px-3 py-3 text-left text-xs font-medium text-muted-foreground"
+                                  style={{ width: 112 }}
+                                >
+                                  Class
+                                </th>
+                                <th style={{ width: 44 }} />
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {expenseFormData.items.map((item, index) => (
+                                <tr
+                                  key={index}
+                                  className="group border-b border-border/70 transition-colors last:border-0 hover:bg-muted/25"
+                                >
+                                  <td className="px-3 py-2.5 align-middle">
+                                    <span className="text-xs font-medium tabular-nums text-muted-foreground">
+                                      {index + 1}
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-2.5 align-middle">
+                                    <ExpenseCategorySelect
+                                      value={item.category}
+                                      onValueChange={(name) =>
+                                        handleExpenseItemChange(index, "category", name)
+                                      }
+                                      idPrefix={`new-expense-cat-${index}`}
+                                    />
+                                  </td>
+                                  <td className="px-3 py-2.5 align-middle">
+                                    <Input
+                                      value={item.description}
+                                      onChange={(e) =>
+                                        handleExpenseItemChange(
+                                          index,
+                                          "description",
+                                          e.target.value,
+                                        )
+                                      }
+                                      placeholder="Description"
+                                      className="h-10 text-sm shadow-none"
+                                    />
+                                  </td>
+                                  <td className="px-3 py-2.5 align-middle">
+                                    <Input
+                                      type="number"
+                                      value={item.amount || ""}
+                                      onChange={(e) =>
+                                        handleExpenseItemChange(
+                                          index,
+                                          "amount",
+                                          parseFloat(e.target.value),
+                                        )
+                                      }
+                                      placeholder="0.00"
+                                      className="h-10 text-right text-sm tabular-nums shadow-none"
+                                    />
+                                  </td>
+                                  <td className="px-3 py-2.5 text-center align-middle">
+                                    <Checkbox />
+                                  </td>
+                                  <td className="px-3 py-2.5 align-middle">
+                                    <Input
+                                      placeholder="Customer"
+                                      className="h-10 text-sm shadow-none"
+                                    />
+                                  </td>
+                                  <td className="px-3 py-2.5 align-middle">
+                                    <Input
+                                      placeholder="Class"
+                                      className="h-10 text-sm shadow-none"
+                                    />
+                                  </td>
+                                  <td className="px-3 py-2.5 align-middle">
+                                    {expenseFormData.items.length > 1 && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleRemoveExpenseItem(index)}
+                                        className="h-9 w-9 p-0 opacity-0 transition-opacity group-hover:opacity-100 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                        aria-label="Remove line"
+                                      >
+                                        <Trash2Icon className="h-4 w-4" />
+                                      </Button>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1 border-t border-border bg-muted/25 px-3 py-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleAddExpenseItem}
+                            className="h-9 text-sm font-medium text-primary hover:bg-primary/10 hover:text-primary"
+                          >
+                            + Add line
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setExpenseFormData({ ...expenseFormData, items: [] })}
+                            className="h-9 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                          >
+                            Clear all
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Totals — width aligned with amount column */}
+                      <div className="mt-4 flex justify-end">
+                        <div className="w-full max-w-[220px] space-y-2 border-t border-border pt-3 text-sm sm:mr-10">
+                          <div className="flex items-center justify-between gap-4">
+                            <span className="text-muted-foreground">Subtotal</span>
+                            <span className="font-medium tabular-nums text-foreground">
+                              PHP{newExpenseTotalFormatted}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-4 border-t border-border pt-2 text-base font-semibold">
+                            <span>Total</span>
+                            <span className="tabular-nums">PHP{newExpenseTotalFormatted}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+
+                    {/* Memo & attachments */}
+                    <section className="bg-background px-6 py-6">
+                      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-8">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground">Memo</Label>
+                          <Textarea
+                            className="min-h-[120px] resize-none rounded-lg border-border bg-background shadow-none"
+                            value={expenseFormData.memo}
+                            onChange={(e) =>
+                              setExpenseFormData({ ...expenseFormData, memo: e.target.value })
+                            }
+                            placeholder="Notes for your team (optional)"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-foreground">
+                            Attachments
+                          </Label>
+                          <button
+                            type="button"
+                            className="flex min-h-[120px] w-full cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-border/80 bg-muted/10 px-4 py-8 text-center transition-colors hover:border-border hover:bg-muted/25"
+                          >
+                            <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                              <Upload className="h-5 w-5" aria-hidden />
+                            </div>
+                            <p className="text-sm font-medium text-foreground">
+                              Drag and drop files here
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">or click to browse</p>
+                          </button>
+                        </div>
+                      </div>
+                    </section>
+                  </div>
                 </div>
-                <Input placeholder="Start typing to add a tag" value={expenseFormData.tags} onChange={(e) => setExpenseFormData({ ...expenseFormData, tags: e.target.value })} className="h-10" />
-              </div>
-            </div>
 
-            <div className="border-t" />
-
-            {/* ── Category Details Table ── */}
-            <div className="px-6 py-5">
-              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0" />
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Category details</h3>
-                </div>
-                <p className="text-[11px] text-muted-foreground max-w-xl sm:text-right">
-                  We match <span className="font-medium">Category</span> (or <span className="font-medium">Description</span>) to an{" "}
-                  <span className="font-medium text-foreground">expense</span> account in Chart of Accounts — exact name
-                  first, then a close partial match. Otherwise the line posts to{" "}
-                  <span className="font-medium">General expense</span>. Your payment account is{" "}
-                  <span className="font-medium">credited</span> for the total.
-                </p>
-              </div>
-
-              <div className="border rounded-lg overflow-hidden">
-                <table className="w-full table-fixed text-sm">
-                  <thead>
-                    <tr className="bg-muted/50 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      <th className="px-3 py-2.5 text-left" style={{width: 40}}>#</th>
-                      <th className="px-3 py-2.5 text-left">Category</th>
-                      <th className="px-3 py-2.5 text-left">Description</th>
-                      <th className="px-3 py-2.5 text-right" style={{width: 120}}>Amount (PHP)</th>
-                      <th className="px-3 py-2.5 text-center" style={{width: 70}}>Billable</th>
-                      <th className="px-3 py-2.5 text-left" style={{width: 130}}>Customer</th>
-                      <th className="px-3 py-2.5 text-left" style={{width: 110}}>Class</th>
-                      <th style={{width: 40}} />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {expenseFormData.items.map((item, index) => (
-                      <tr key={index} className="border-t group hover:bg-muted/30 transition-colors">
-                        <td className="px-3 py-2"><span className="text-xs text-muted-foreground font-medium">{index + 1}</span></td>
-                        <td className="px-3 py-2">
-                          <Input value={item.category} onChange={(e) => handleExpenseItemChange(index, "category", e.target.value)} placeholder="Category" className="h-9 text-sm" />
-                        </td>
-                        <td className="px-3 py-2">
-                          <Input value={item.description} onChange={(e) => handleExpenseItemChange(index, "description", e.target.value)} placeholder="Description" className="h-9 text-sm" />
-                        </td>
-                        <td className="px-3 py-2">
-                          <Input type="number" value={item.amount || ""} onChange={(e) => handleExpenseItemChange(index, "amount", parseFloat(e.target.value))} placeholder="0.00" className="h-9 text-sm text-right" />
-                        </td>
-                        <td className="px-3 py-2 text-center"><Checkbox /></td>
-                        <td className="px-3 py-2"><Input placeholder="Customer" className="h-9 text-sm" /></td>
-                        <td className="px-3 py-2"><Input placeholder="Class" className="h-9 text-sm" /></td>
-                        <td className="px-3 py-2">
-                          {expenseFormData.items.length > 1 && (
-                            <Button variant="ghost" size="sm" onClick={() => handleRemoveExpenseItem(index)} className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500">
-                              <Trash2Icon className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div className="flex items-center gap-2 px-3 py-2.5 border-t bg-muted/20">
-                  <Button variant="ghost" size="sm" onClick={handleAddExpenseItem} className="h-8 text-xs font-medium text-orange-700 hover:text-orange-800 hover:bg-orange-50">
-                    + Add line
+                {/* Footer */}
+                <div className="flex shrink-0 flex-col gap-3 border-t border-border bg-background px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <Button
+                    variant="outline"
+                    className="h-10 rounded-lg px-4"
+                    onClick={() => setShowExpenseDialog(false)}
+                  >
+                    Cancel
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setExpenseFormData({ ...expenseFormData, items: [] })} className="h-8 text-xs font-medium text-muted-foreground hover:text-foreground">
-                    Clear all
-                  </Button>
-                </div>
-              </div>
-
-              {/* Totals */}
-              <div className="flex justify-end mt-4">
-                <div className="w-56 space-y-1.5 text-sm">
-                  <div className="flex justify-between py-1">
-                    <span className="text-muted-foreground">Subtotal</span>
-                    <span className="font-semibold">PHP{expenseFormData.items.reduce((sum, it) => sum + (Number(it.amount) || 0), 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
-                  </div>
-                  <div className="flex justify-between py-1.5 border-t font-bold text-base">
-                    <span>Total</span>
-                    <span>PHP{expenseFormData.items.reduce((sum, it) => sum + (Number(it.amount) || 0), 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="border-t" />
-
-            {/* ── Memo & Attachments ── */}
-            <div className="px-6 py-5">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
-                    <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Memo</Label>
-                  </div>
-                  <Textarea className="min-h-[100px] resize-none" value={expenseFormData.memo} onChange={(e) => setExpenseFormData({ ...expenseFormData, memo: e.target.value })} />
-                </div>
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0" />
-                    <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Attachments</Label>
-                  </div>
-                  <div className="border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-muted/30 transition-colors">
-                    <Upload className="h-6 w-6 text-muted-foreground mb-2" />
-                    <p className="text-sm font-medium">Drag & drop files here</p>
-                    <p className="text-xs text-muted-foreground mt-1">or click to browse</p>
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <Button variant="outline" className="h-10 rounded-lg px-4 shadow-none">
+                      Print
+                    </Button>
+                    <Button variant="outline" className="h-10 rounded-lg px-4 shadow-none">
+                      Make recurring
+                    </Button>
+                    <Button
+                      className="h-10 rounded-lg bg-green-600 px-4 text-white shadow-none hover:bg-green-700"
+                      onClick={handleSaveExpense}
+                    >
+                      Save
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button className="h-10 rounded-lg bg-green-600 px-4 text-white shadow-none hover:bg-green-700">
+                          Save and close
+                          <ChevronDown className="ml-1.5 h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={handleSaveExpense}>Save and new</DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleSaveExpense}>Save and close</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
-              </div>
-            </div>
-
-          </div>
-
-          {/* ── Footer ── */}
-          <div className="flex items-center justify-between px-6 py-4 border-t bg-muted/20 shrink-0">
-            <Button variant="outline" className="h-9 text-sm" onClick={() => setShowExpenseDialog(false)}>Cancel</Button>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" className="h-9 text-sm">Print</Button>
-              <Button variant="outline" className="h-9 text-sm">Make recurring</Button>
-              <Button className="h-9 text-sm bg-green-600 hover:bg-green-700 text-white" onClick={handleSaveExpense}>Save</Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button className="h-9 text-sm bg-green-600 hover:bg-green-700 text-white">
-                    Save and close
-                    <ChevronDown className="ml-1.5 h-3.5 w-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={handleSaveExpense}>Save and new</DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleSaveExpense}>Save and close</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
+          </>
         </DialogContent>
       </Dialog>
 

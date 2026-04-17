@@ -267,7 +267,8 @@ export default function InvoicesTable() {
 
   const stats = calculateStats()
   const overduePercentage = stats.unpaid > 0 ? (stats.overdue / stats.unpaid) * 100 : 0
-  const depositedPercentage = stats.paid > 0 ? (stats.deposited / stats.paid) * 100 : 100
+  // If nothing was paid in the period, show a neutral 0% (not a full green bar).
+  const depositedPercentage = stats.paid > 0 ? (stats.deposited / stats.paid) * 100 : 0
 
   const getStatusDisplay = (invoice: Invoice) => {
     const status = invoice.status
@@ -465,11 +466,17 @@ export default function InvoicesTable() {
                     <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
                       <div className="flex h-full w-full">
                         <div
-                          className="h-full bg-emerald-600"
+                          className={cn(
+                            "h-full",
+                            stats.paid > 0 ? "bg-emerald-600" : "bg-muted-foreground/25",
+                          )}
                           style={{ width: `${depositedPercentage}%` }}
                         />
                         <div
-                          className="h-full bg-emerald-600/15"
+                          className={cn(
+                            "h-full",
+                            stats.paid > 0 ? "bg-emerald-600/15" : "bg-muted-foreground/15",
+                          )}
                           style={{ width: `${100 - depositedPercentage}%` }}
                         />
                       </div>

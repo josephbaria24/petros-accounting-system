@@ -39,7 +39,7 @@ export function PaymentMethodSelect({
 
   return (
     <Select value={selectValue} onValueChange={onValueChange} disabled={disabled}>
-      <SelectTrigger className="h-10 w-full min-w-0 border-green-600/40 bg-white">
+      <SelectTrigger className="h-10 w-full min-w-0 border-border bg-background shadow-none">
         <SelectValue placeholder="Select payment method" />
       </SelectTrigger>
       <SelectContent className="max-h-[min(320px,50vh)] w-[var(--radix-select-trigger-width)] min-w-[220px] p-0">

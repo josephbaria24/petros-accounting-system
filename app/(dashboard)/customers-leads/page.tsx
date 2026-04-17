@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/table";
 import type { LucideIcon } from "lucide-react";
 import {
-  ArrowRight,
   CheckCircle2,
   ClipboardList,
   UserPlus,
@@ -38,6 +37,10 @@ import {
   ChevronRight,
   UsersRound,
 } from "lucide-react";
+
+/** Same height on paired cards so the header border lines up across columns. */
+const PAIR_CARD_HEADER =
+  "flex min-h-[5.25rem] shrink-0 items-center gap-3 border-b border-border px-5 py-4";
 
 type OverdueRow = {
   id: string;
@@ -105,40 +108,45 @@ function CustomersLeadsContent() {
     router.push(`/customers-leads?tab=${value}`, { scroll: false });
   };
 
+  /** Same KPI card layout as Sales → Overview (`sales-overview.tsx`). */
   const funnelSteps: {
     label: string;
     value: number;
+    helper: string;
     badge?: string;
     href?: string;
     icon: LucideIcon;
+    valueClass?: string;
   }[] = [
-    { label: "Open opportunities", value: 0, icon: Target },
-    { label: "Open estimates", value: 0, icon: FileSpreadsheet },
-    { label: "Open contracts", value: 0, icon: ScrollText },
-    { label: "In progress projects", value: 0, icon: LayoutList },
+    { label: "Open opportunities", value: 0, helper: "In pipeline", icon: Target },
+    { label: "Open estimates", value: 0, helper: "Pending", icon: FileSpreadsheet },
+    { label: "Open contracts", value: 0, helper: "Awaiting signature", icon: ScrollText },
+    { label: "In progress projects", value: 0, helper: "Active work", icon: LayoutList },
     {
       label: "Unpaid invoices",
       value: unpaidCount,
+      helper: "Open count",
       badge: overdueCount > 0 ? `${overdueCount} overdue` : undefined,
       href: "/sales?tab=invoices&invoiceFilter=unpaid",
       icon: Receipt,
+      valueClass: "text-amber-950 dark:text-amber-100",
     },
-    { label: "Reviews", value: 0, icon: Star },
+    { label: "Reviews", value: 0, helper: "Collected", icon: Star },
   ];
 
   return (
-    <div className="min-h-screen bg-muted/20">
-      <div className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:px-8 lg:py-6 2xl:max-w-[1536px]">
-        <div className="space-y-1">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Customers &amp; leads</p>
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Customers &amp; leads</h1>
-          <p className="text-sm text-muted-foreground">
+    <div className="min-h-screen bg-background">
+      <div className="mx-auto w-full max-w-7xl space-y-8 p-4 sm:p-6 lg:px-8 lg:py-8 2xl:max-w-[1536px]">
+        <header className="space-y-2 border-b border-border pb-8">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Customers &amp; leads</p>
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">Customers &amp; leads</h1>
+          <p className="max-w-2xl text-sm text-muted-foreground sm:text-[15px]">
             Pipeline health, surveys, and shortcuts in one place.
           </p>
-        </div>
+        </header>
 
-        <Tabs value={tab} onValueChange={setTab} className="w-full space-y-6">
-          <TabsList className="mb-2 h-auto min-h-10 w-full flex-wrap justify-start gap-1 rounded-xl border border-border/70 bg-muted/40 p-1">
+        <Tabs value={tab} onValueChange={setTab} className="w-full space-y-8">
+          <TabsList className="mb-0 inline-flex h-auto min-h-10 w-full flex-wrap justify-start gap-0 rounded-lg border border-border bg-muted/40 p-0.5 sm:w-auto sm:flex-nowrap">
             {[
               { id: "overview", label: "Overview" },
               { id: "customers", label: "Customers" },
@@ -147,97 +155,99 @@ function CustomersLeadsContent() {
               { id: "contracts", label: "Contracts" },
               { id: "reviews", label: "Reviews" },
             ].map((t) => (
-              <TabsTrigger key={t.id} value={t.id} className="rounded-lg px-3 py-2 text-sm">
+              <TabsTrigger
+                key={t.id}
+                value={t.id}
+                className="rounded-md px-3.5 py-2 text-sm font-medium text-muted-foreground data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+              >
                 {t.label}
               </TabsTrigger>
             ))}
           </TabsList>
 
-          <TabsContent value="overview" className="mt-4 space-y-10">
+          <TabsContent value="overview" className="mt-2 space-y-12 focus-visible:outline-none">
             {/* Pipeline funnel */}
-            <section className="space-y-3">
-              <div className="flex flex-wrap items-end justify-between gap-2">
-                <div>
-                  <h2 className="text-sm font-semibold tracking-tight">Pipeline snapshot</h2>
-                  <p className="text-xs text-muted-foreground">Key counts across your sales workflow</p>
+            <section className="space-y-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+                <div className="space-y-1">
+                  <h2 className="text-lg font-semibold tracking-tight text-foreground">Pipeline snapshot</h2>
+                  <p className="text-sm text-muted-foreground">Key counts across your sales workflow</p>
                 </div>
-                <span className="text-xs font-medium text-muted-foreground">As of today</span>
+                <span className="text-xs text-muted-foreground">As of today</span>
               </div>
 
-              <div className="flex flex-col gap-2 lg:flex-row lg:flex-nowrap lg:items-stretch lg:gap-0">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
                 {loading
                   ? Array.from({ length: 6 }).map((_, i) => (
-                      <div key={i} className="flex min-w-0 flex-1 items-stretch">
-                        <Skeleton className="h-[172px] w-full min-w-[132px] flex-1 rounded-xl" />
-                        {i < 5 ? (
-                          <div className="hidden shrink-0 items-center justify-center px-1 text-muted-foreground/35 lg:flex">
-                            <ArrowRight className="h-4 w-4" />
+                      <Card key={i} className="flex h-full flex-col border-border/80 shadow-sm">
+                        <CardHeader className="flex shrink-0 flex-row items-start justify-between gap-2 space-y-0 border-b border-border/60 pb-3">
+                          <div className="min-w-0 flex-1 space-y-1.5">
+                            <Skeleton className="h-11 w-full rounded-sm" />
+                            <Skeleton className="h-7 w-16" />
                           </div>
-                        ) : null}
-                      </div>
+                          <Skeleton className="h-9 w-9 shrink-0 rounded-md" />
+                        </CardHeader>
+                        <CardContent className="flex flex-1 flex-col pt-4">
+                          <Skeleton className="h-[26px] w-20 rounded-md" />
+                          <div className="min-h-2 flex-1" aria-hidden />
+                          <Skeleton className="h-3 w-24" />
+                        </CardContent>
+                      </Card>
                     ))
-                  : funnelSteps.map((step, i) => {
+                  : funnelSteps.map((step) => {
                       const Icon = step.icon;
-                      // Fixed grid: same icon row, title band, value, and badge slot on every card so labels align across the row.
-                      const inner = (
-                        <>
-                          <div className="bg-linear-to-r from-emerald-500/90 via-teal-500/80 to-emerald-600/90 h-1 w-full shrink-0" />
-                          <CardContent className="flex min-h-[168px] flex-col p-4 pt-3">
-                            <div className="flex h-9 shrink-0 items-center justify-between gap-2">
-                              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                                <Icon className="h-4 w-4 shrink-0" aria-hidden />
+                      const card = (
+                        <Card
+                          className={cn(
+                            "flex h-full flex-col border-border/80 shadow-sm",
+                            step.href && "transition-shadow hover:shadow-md",
+                          )}
+                        >
+                          <CardHeader className="flex shrink-0 flex-row items-start justify-between gap-2 space-y-0 border-b border-border/60 pb-3">
+                            <div className="min-w-0 flex-1 space-y-1 pr-1">
+                              <div className="min-h-11">
+                                <CardTitle className="line-clamp-2 text-left text-xs font-semibold uppercase leading-snug tracking-wide text-muted-foreground">
+                                  {step.label}
+                                </CardTitle>
                               </div>
-                              <span className="flex h-4 w-4 shrink-0 items-center justify-center text-muted-foreground">
-                                {step.href ? (
-                                  <ChevronRight className="h-4 w-4 opacity-0 transition-opacity group-hover:opacity-100" />
-                                ) : null}
-                              </span>
+                              <div
+                                className={cn(
+                                  "text-left text-xl font-semibold tabular-nums leading-none tracking-tight",
+                                  step.valueClass,
+                                )}
+                              >
+                                {step.value.toLocaleString()}
+                              </div>
                             </div>
-                            <div className="mt-3 flex min-h-11 items-end">
-                              <p className="w-full text-[11px] font-semibold uppercase leading-snug tracking-wider text-muted-foreground">
-                                {step.label}
-                              </p>
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                              <Icon className="size-4 shrink-0" strokeWidth={1.5} aria-hidden />
                             </div>
-                            <p className="mt-2 text-2xl font-semibold tabular-nums leading-none tracking-tight text-foreground md:text-3xl">
-                              {step.value}
-                            </p>
-                            <div className="mt-2 min-h-[26px]">
+                          </CardHeader>
+                          <CardContent className="flex flex-1 flex-col pt-4">
+                            <div className="flex min-h-[26px] items-center">
                               {step.badge ? (
-                                <Badge variant="destructive" className="font-normal">
+                                <Badge variant="destructive" className="text-xs font-normal">
                                   {step.badge}
                                 </Badge>
-                              ) : (
-                                <span className="block min-h-[22px] w-full" aria-hidden />
-                              )}
+                              ) : null}
                             </div>
+                            <div className="min-h-2 flex-1 shrink-0" aria-hidden />
+                            <p className="text-left text-xs leading-normal text-muted-foreground">{step.helper}</p>
                           </CardContent>
-                        </>
+                        </Card>
                       );
-                      return (
-                        <div key={step.label} className="flex min-w-0 flex-1 items-stretch gap-0">
-                          <Card
-                            className={cn(
-                              "flex h-full min-h-0 flex-1 flex-col border-border/80 shadow-sm",
-                              step.href && "transition-shadow hover:shadow-md"
-                            )}
-                          >
-                            {step.href ? (
-                              <Link
-                                href={step.href}
-                                className="group flex h-full flex-col text-inherit no-underline outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                                aria-label={`${step.label}: ${step.value}. Open unpaid invoices in Sales.`}
-                              >
-                                {inner}
-                              </Link>
-                            ) : (
-                              <div className="flex h-full flex-col">{inner}</div>
-                            )}
-                          </Card>
-                          {i < funnelSteps.length - 1 && (
-                            <div className="hidden items-center justify-center px-1.5 text-muted-foreground/50 lg:flex">
-                              <ArrowRight className="h-4 w-4" aria-hidden />
-                            </div>
-                          )}
+                      return step.href ? (
+                        <Link
+                          key={step.label}
+                          href={step.href}
+                          className="block h-full min-h-0 rounded-lg text-inherit no-underline outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          aria-label={`${step.label}: ${step.value}. Open in Sales.`}
+                        >
+                          {card}
+                        </Link>
+                      ) : (
+                        <div key={step.label} className="h-full min-h-0">
+                          {card}
                         </div>
                       );
                     })}
@@ -245,60 +255,53 @@ function CustomersLeadsContent() {
             </section>
 
             {/* Surveys */}
-            <section className="space-y-3">
-              <h2 className="text-sm font-semibold tracking-tight">Post-invoice surveys</h2>
-              <p className="text-xs text-muted-foreground">
-                Automate follow-ups after you send an invoice—configure each flow below.
-              </p>
+            <section className="space-y-5">
+              <div className="space-y-1">
+                <h2 className="text-lg font-semibold tracking-tight">Post-invoice surveys</h2>
+                <p className="max-w-2xl text-sm text-muted-foreground">
+                  Automate follow-ups after you send an invoice—configure each flow below.
+                </p>
+              </div>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 {[
                   {
                     title: "Work requests",
                     desc: "Drive repeat business using the post-invoice survey.",
                     icon: MessageSquare,
-                    accent: "from-violet-500/15 to-card",
                   },
                   {
                     title: "Referrals",
                     desc: "Generate referrals using the post-invoice survey.",
                     icon: Share2,
-                    accent: "from-sky-500/15 to-card",
                   },
                   {
                     title: "Reviews & testimonials",
                     desc: "Collect feedback using the post-invoice survey.",
                     icon: Sparkles,
-                    accent: "from-amber-500/15 to-card",
                   },
                 ].map((w) => {
                   const SurveyIcon = w.icon;
                   return (
                   <Card
                     key={w.title}
-                    className="flex flex-col overflow-hidden border-border/80 shadow-sm transition-shadow hover:shadow-md"
+                    className="flex flex-col rounded-lg border border-border bg-card shadow-none"
                   >
-                    <CardHeader className="space-y-3 pb-2">
+                    <CardHeader className="space-y-3 pb-2 pt-6">
                       <div className="flex items-start gap-3">
-                        <div
-                          className={cn(
-                            "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-linear-to-br border border-border/60",
-                            w.accent
-                          )}
-                        >
-                          <SurveyIcon className="h-5 w-5 text-foreground/80" />
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-muted">
+                          <SurveyIcon className="h-5 w-5 text-muted-foreground" />
                         </div>
                         <div className="min-w-0 space-y-1">
-                          <CardTitle className="text-base font-semibold leading-tight">{w.title}</CardTitle>
+                          <CardTitle className="text-base font-semibold leading-snug">{w.title}</CardTitle>
                           <CardDescription className="text-sm leading-relaxed">{w.desc}</CardDescription>
                         </div>
                       </div>
                     </CardHeader>
-                    <CardContent className="flex flex-1 flex-col gap-4 pt-0">
-                      <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 p-4">
-                        <div className="mb-3 flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    <CardContent className="flex flex-1 flex-col gap-3 px-5 pb-5 pt-0">
+                      <div className="rounded-md border border-dashed border-border bg-muted/30 p-3">
+                        <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                           Preview
-                        </div>
+                        </p>
                         <div className="space-y-2">
                           <Skeleton className="h-2 w-[88%] rounded-full" />
                           <Skeleton className="h-2 w-[72%] rounded-full" />
@@ -309,10 +312,10 @@ function CustomersLeadsContent() {
                           </div>
                         </div>
                         <p className="mt-3 text-center text-[11px] text-muted-foreground">
-                          Survey content is configured in settings
+                          Configure in settings
                         </p>
                       </div>
-                      <Button variant="outline" size="sm" className="w-full border-border/80" type="button">
+                      <Button variant="outline" size="sm" className="w-full" type="button">
                         Manage survey settings
                       </Button>
                     </CardContent>
@@ -323,27 +326,27 @@ function CustomersLeadsContent() {
             </section>
 
             {/* Overdue + Estimates */}
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <Card className="border-border/80 shadow-sm">
-                <CardHeader className="flex flex-row items-start justify-between space-y-0 border-b border-border/60 pb-4">
-                  <div className="flex gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
-                      <Receipt className="h-5 w-5" />
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <Card className="rounded-lg border border-border bg-card shadow-none">
+                <CardHeader className={PAIR_CARD_HEADER}>
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-destructive/10 text-destructive">
+                      <Receipt className="size-4 shrink-0" strokeWidth={1.5} aria-hidden />
                     </div>
-                    <div>
-                      <CardTitle className="text-base font-semibold">Overdue invoices</CardTitle>
-                      <CardDescription>Balances past due date · as of today</CardDescription>
+                    <div className="min-w-0 space-y-0.5">
+                      <CardTitle className="text-base font-semibold leading-tight">Overdue invoices</CardTitle>
+                      <CardDescription className="text-sm leading-snug">Past due · today</CardDescription>
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4 pt-6">
-                  <div className="text-3xl font-semibold tabular-nums tracking-tight text-foreground">
-                    {loading ? <Skeleton className="inline-block h-9 w-40" /> : formatPHP(overdueTotal)}
+                <CardContent className="space-y-4 px-5 py-5">
+                  <div className="text-2xl font-semibold tabular-nums text-foreground">
+                    {loading ? <Skeleton className="inline-block h-9 w-40 rounded-md" /> : formatPHP(overdueTotal)}
                   </div>
-                  <div className="overflow-hidden rounded-lg border border-border/80">
+                  <div className="overflow-hidden rounded-md border border-border">
                     <Table>
                       <TableHeader>
-                        <TableRow className="border-b border-border/80 bg-muted/40 hover:bg-muted/40">
+                        <TableRow className="border-b border-border bg-muted/40 hover:bg-muted/40">
                           <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                             Client
                           </TableHead>
@@ -405,7 +408,7 @@ function CustomersLeadsContent() {
                       </TableBody>
                     </Table>
                   </div>
-                  <Button variant="link" className="h-auto p-0 text-sm font-medium" asChild>
+                  <Button variant="link" className="h-auto p-0 text-sm font-medium text-primary" asChild>
                     <Link
                       href="/sales?tab=invoices&invoiceFilter=overdue"
                       className="inline-flex items-center gap-1"
@@ -417,26 +420,26 @@ function CustomersLeadsContent() {
                 </CardContent>
               </Card>
 
-              <Card className="border-border/80 shadow-sm">
-                <CardHeader className="border-b border-border/60 pb-4">
-                  <div className="flex gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                      <FileSpreadsheet className="h-5 w-5" />
+              <Card className="rounded-lg border border-border bg-card shadow-none">
+                <CardHeader className={PAIR_CARD_HEADER}>
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                      <FileSpreadsheet className="size-4 shrink-0" strokeWidth={1.5} aria-hidden />
                     </div>
-                    <div>
-                      <CardTitle className="text-base font-semibold">Open estimates</CardTitle>
-                      <CardDescription>Quotes you&apos;ve sent that are still open</CardDescription>
+                    <div className="min-w-0 space-y-0.5">
+                      <CardTitle className="text-base font-semibold leading-tight">Open estimates</CardTitle>
+                      <CardDescription className="text-sm leading-snug">Sent quotes still open</CardDescription>
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="flex min-h-[220px] flex-col items-center justify-center gap-4 py-10 text-center">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-dashed border-border/80 bg-muted/30">
-                    <FileSpreadsheet className="h-7 w-7 text-muted-foreground/70" />
+                <CardContent className="flex min-h-[200px] flex-col items-center justify-center gap-4 px-5 py-10 text-center">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-md border border-dashed border-border bg-muted/30">
+                    <FileSpreadsheet className="h-7 w-7 text-muted-foreground" />
                   </div>
-                  <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
-                    You have no open estimates. Create an estimate to win more jobs.
+                  <p className="max-w-sm text-sm text-muted-foreground">
+                    No open estimates. Create one to win more work.
                   </p>
-                  <Button type="button" variant="outline" className="border-border/80">
+                  <Button type="button" variant="outline" size="sm">
                     Create an estimate
                   </Button>
                 </CardContent>
@@ -444,37 +447,46 @@ function CustomersLeadsContent() {
             </div>
 
             {/* Tasks + Shortcuts */}
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <Card className="border-border/80 shadow-sm">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b border-border/60 pb-4">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                    <CardTitle className="text-base font-semibold">Tasks</CardTitle>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <Card className="rounded-lg border border-border bg-card shadow-none">
+                <CardHeader className={cn(PAIR_CARD_HEADER, "justify-between gap-4")}>
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                      <CheckCircle2 className="size-4 shrink-0" strokeWidth={1.5} aria-hidden />
+                    </div>
+                    <div className="min-w-0 space-y-0.5">
+                      <CardTitle className="text-base font-semibold leading-tight">Tasks</CardTitle>
+                      <p className="min-h-5 text-sm leading-snug" aria-hidden />
+                    </div>
                   </div>
-                  <span className="text-xs text-muted-foreground">All open tasks</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">All open</span>
                 </CardHeader>
-                <CardContent className="flex flex-col items-center justify-center py-14 text-center">
-                  <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/10">
-                    <CheckCircle2 className="h-9 w-9 text-emerald-600" />
+                <CardContent className="flex flex-col items-center justify-center px-5 py-12 text-center">
+                  <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-md border border-border bg-muted/50">
+                    <CheckCircle2 className="h-7 w-7 text-muted-foreground" />
                   </div>
                   <p className="font-medium text-foreground">You&apos;re caught up</p>
-                  <p className="mt-1 max-w-xs text-sm text-muted-foreground">No tasks need your attention right now.</p>
-                  <Button variant="link" className="mt-4 h-auto p-0 text-sm font-medium" asChild>
+                  <p className="mt-1 max-w-xs text-sm text-muted-foreground">Nothing needs attention.</p>
+                  <Button variant="link" className="mt-4 h-auto p-0 text-sm font-medium text-primary" asChild>
                     <Link href="#">Show all</Link>
                   </Button>
                 </CardContent>
               </Card>
 
-              <Card className="border-border/80 shadow-sm">
-                <CardHeader className="border-b border-border/60 pb-4">
-                  <div className="flex items-center gap-2">
-                    <UsersRound className="h-4 w-4 text-muted-foreground" />
-                    <CardTitle className="text-base font-semibold">Shortcuts</CardTitle>
+              <Card className="rounded-lg border border-border bg-card shadow-none">
+                <CardHeader className={PAIR_CARD_HEADER}>
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                      <UsersRound className="size-4 shrink-0" strokeWidth={1.5} aria-hidden />
+                    </div>
+                    <div className="min-w-0 space-y-0.5">
+                      <CardTitle className="text-base font-semibold leading-tight">Shortcuts</CardTitle>
+                      <CardDescription className="text-sm leading-snug">Common actions</CardDescription>
+                    </div>
                   </div>
-                  <CardDescription>Jump to common customer and billing actions</CardDescription>
                 </CardHeader>
-                <CardContent className="pt-6">
-                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                <CardContent className="px-5 py-5">
+                  <div className="grid grid-cols-2 gap-2 sm:gap-3">
                     {[
                       {
                         href: "/sales?tab=customers&addCustomer=1",
@@ -501,16 +513,11 @@ function CustomersLeadsContent() {
                         key={label}
                         href={href}
                         prefetch
-                        className="group flex flex-col gap-3 rounded-xl border border-border/80 bg-card p-4 text-center transition-colors hover:border-border hover:bg-muted/40"
+                        className="flex flex-col gap-2 rounded-md border border-border bg-background p-3 text-center transition-colors hover:bg-muted/50"
                       >
-                        <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-border/60 transition-transform group-hover:scale-[1.02]">
-                          <Icon className="h-5 w-5" />
-                        </div>
+                        <Icon className="mx-auto size-4 shrink-0 text-muted-foreground" strokeWidth={1.5} aria-hidden />
                         <span className="text-xs font-medium leading-snug text-foreground">{label}</span>
-                        <span className="inline-flex items-center justify-center gap-0.5 text-[11px] font-medium text-muted-foreground group-hover:text-foreground">
-                          Open
-                          <ChevronRight className="h-3 w-3 opacity-70" />
-                        </span>
+                        <span className="text-[11px] text-muted-foreground">Open →</span>
                       </Link>
                     ))}
                   </div>
@@ -519,36 +526,36 @@ function CustomersLeadsContent() {
             </div>
           </TabsContent>
 
-          <TabsContent value="customers" className="mt-4">
-            <Card className="border-border/80 shadow-sm">
-              <CardHeader className="border-b border-border/60 pb-4">
-                <CardTitle className="text-lg">Customers</CardTitle>
-                <CardDescription>
-                  View and manage all customers, balances, and activity.
+          <TabsContent value="customers" className="mt-2 focus-visible:outline-none">
+            <Card className="rounded-lg border border-border bg-card shadow-none">
+              <CardHeader className="border-b border-border px-5 py-4">
+                <CardTitle className="text-lg font-semibold">Customers</CardTitle>
+                <CardDescription className="text-sm">
+                  View and manage customers, balances, and activity.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="flex flex-wrap gap-3 pt-6">
-                <Button asChild>
+              <CardContent className="flex flex-wrap gap-2 px-5 py-5">
+                <Button asChild size="sm">
                   <Link href="/customers">Open customer list</Link>
                 </Button>
-                <Button asChild variant="outline" className="border-border/80">
+                <Button asChild variant="outline" size="sm">
                   <Link href="/customers/new">New customer</Link>
                 </Button>
-                <Button asChild variant="outline" className="border-border/80">
+                <Button asChild variant="outline" size="sm">
                   <Link href="/sales?tab=customers">Sales · Customers</Link>
                 </Button>
               </CardContent>
             </Card>
           </TabsContent>
 
-          <TabsContent value="leads" className="mt-4">
-            <Card className="border-border/80 shadow-sm">
-              <CardHeader className="border-b border-border/60 pb-4">
-                <CardTitle className="text-lg">Leads</CardTitle>
-                <CardDescription>Track prospects and convert them to customers.</CardDescription>
+          <TabsContent value="leads" className="mt-2 focus-visible:outline-none">
+            <Card className="rounded-lg border border-border bg-card shadow-none">
+              <CardHeader className="border-b border-border px-5 py-4">
+                <CardTitle className="text-lg font-semibold">Leads</CardTitle>
+                <CardDescription className="text-sm">Prospects and contacts.</CardDescription>
               </CardHeader>
-              <CardContent className="pt-6">
-                <Button asChild>
+              <CardContent className="px-5 py-5">
+                <Button asChild size="sm">
                   <Link href="/contacts">Open leads &amp; contacts</Link>
                 </Button>
               </CardContent>
@@ -556,16 +563,15 @@ function CustomersLeadsContent() {
           </TabsContent>
 
           {["marketing", "contracts", "reviews"].map((id) => (
-            <TabsContent key={id} value={id} className="mt-4">
-              <Card className="border-border/80 shadow-sm">
-                <CardHeader className="border-b border-border/60 pb-4">
-                  <CardTitle className="text-lg capitalize">{id}</CardTitle>
-                  <CardDescription>Coming soon</CardDescription>
+            <TabsContent key={id} value={id} className="mt-2 focus-visible:outline-none">
+              <Card className="rounded-lg border border-dashed border-border bg-muted/20 shadow-none">
+                <CardHeader className="border-b border-dashed border-border px-5 py-4">
+                  <CardTitle className="text-lg font-semibold capitalize">{id}</CardTitle>
+                  <CardDescription className="text-sm">Coming soon</CardDescription>
                 </CardHeader>
-                <CardContent className="pt-6">
-                  <p className="text-sm leading-relaxed text-muted-foreground">
-                    This section is coming soon. Connect campaigns, contracts, and reviews here when those modules are
-                    enabled.
+                <CardContent className="px-5 py-5">
+                  <p className="max-w-xl text-sm text-muted-foreground">
+                    This section is coming soon. Campaigns, contracts, and reviews will live here.
                   </p>
                 </CardContent>
               </Card>
@@ -581,10 +587,12 @@ export default function CustomersLeadsPage() {
   return (
     <Suspense
       fallback={
-        <div className="mx-auto max-w-7xl space-y-6 p-6">
-          <Skeleton className="h-8 w-64" />
-          <Skeleton className="h-10 w-full max-w-xl" />
-          <Skeleton className="h-[280px] w-full rounded-xl" />
+        <div className="min-h-screen bg-background">
+          <div className="mx-auto max-w-7xl space-y-6 p-6">
+            <Skeleton className="h-24 w-full max-w-xl rounded-md" />
+            <Skeleton className="h-10 w-72 rounded-md" />
+            <Skeleton className="h-40 w-full rounded-lg border border-border" />
+          </div>
         </div>
       }
     >
