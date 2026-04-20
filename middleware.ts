@@ -2,6 +2,32 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+function withSecurityHeaders(response: NextResponse) {
+  // Anti click-jacking
+  response.headers.set('X-Frame-Options', 'DENY')
+  // CSP click-jacking defense (modern)
+  response.headers.set(
+    'Content-Security-Policy',
+    [
+      "frame-ancestors 'none'",
+      // Keep this minimal to avoid breaking existing scripts/styles.
+      "base-uri 'self'",
+      "object-src 'none'",
+    ].join('; ')
+  )
+
+  // Baseline hardening
+  response.headers.set('X-Content-Type-Options', 'nosniff')
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+
+  // Only meaningful over HTTPS
+  if (process.env.NODE_ENV === 'production') {
+    response.headers.set('Strict-Transport-Security', 'max-age=15552000; includeSubDomains')
+  }
+  return response
+}
+
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
     request: {
@@ -59,43 +85,26 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Protected routes - redirect to login if not authenticated
-  const protectedPaths = ['/invoices', '/customers', '/customers-leads', '/payments', '/settings']
-  const isProtectedPath = protectedPaths.some(path => 
-    request.nextUrl.pathname === path || request.nextUrl.pathname.startsWith(`${path}/`)
-  )
-
-  if (isProtectedPath && !user) {
-    return NextResponse.redirect(new URL('/login', request.url))
-  }
-
-  // Protect root path (dashboard)
-  if (request.nextUrl.pathname === '/' && !user) {
-    return NextResponse.redirect(new URL('/login', request.url))
-  }
-
-  // Auth routes - redirect to root (dashboard) if already authenticated
   const authPaths = ['/login', '/signup']
   const isAuthPath = authPaths.includes(request.nextUrl.pathname)
 
   if (isAuthPath && user) {
-    return NextResponse.redirect(new URL('/', request.url))
+    return withSecurityHeaders(NextResponse.redirect(new URL('/', request.url)))
   }
 
-  return response
+  // Protect all non-auth pages by default (prevents URL manipulation to reach unlisted routes like /reports, /expenses, etc.)
+  // Allow API routes to handle their own auth (they already do checks or are public by design).
+  const isApi = request.nextUrl.pathname.startsWith('/api/')
+  if (!isAuthPath && !isApi && !user) {
+    return withSecurityHeaders(NextResponse.redirect(new URL('/login', request.url)))
+  }
+
+  return withSecurityHeaders(response)
 }
 
 export const config = {
   matcher: [
-    '/',
-    '/dashboard/:path*',
-    '/invoices/:path*',
-    '/customers/:path*',
-    '/customers-leads',
-    '/customers-leads/:path*',
-    '/payments/:path*',
-    '/settings/:path*',
-    '/login',
-    '/signup',
+    // Apply to all routes except Next.js internals/static assets.
+    '/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)',
   ],
 }

@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { createClient } from "@/lib/supabase-client";
+import { postPaymentToLedger } from "@/lib/payment-journal";
 
 export interface SelectedInvoiceForPayment {
   id: string;
@@ -195,6 +196,25 @@ const handleSavePayment = async (closeAfterSave: boolean = false) => {
 
     if (paymentError) throw paymentError;
 
+    // Post to ledger so Chart of Accounts balances update (Cash on hand / bank).
+    try {
+      await postPaymentToLedger(supabase as any, {
+        paymentId: paymentData.id,
+        depositTo: depositTo as any,
+        amount,
+        entryDate: paymentDate,
+        memo: memo || null,
+      });
+    } catch (e) {
+      console.error("Payment ledger post failed:", e);
+      // Keep the payment record; just inform the user that balances may not reflect it yet.
+      sileo.warning({
+        title: "Payment saved, ledger not updated",
+        description:
+          "Payment recorded but cash/bank balance did not update. Please try again or refresh later.",
+      });
+    }
+
     // Save attachments if any (link them to customer)
     if (attachments.length > 0) {
       const attachmentRecords = attachments.map((att) => ({
@@ -261,7 +281,7 @@ const handleSavePayment = async (closeAfterSave: boolean = false) => {
             <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-lg border">
               <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Amount received</span>
               <span className="text-lg font-bold text-green-700">
-                PHP{parseFloat(amountReceived || "0").toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                ₱{parseFloat(amountReceived || "0").toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
             </div>
             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => onOpenChange(false)}>
@@ -380,10 +400,10 @@ const handleSavePayment = async (closeAfterSave: boolean = false) => {
                       {new Date(invoice.due_date || "").toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })}
                     </td>
                     <td className="px-3 py-2.5 text-right text-sm">
-                      PHP{invoice.total_amount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                      ₱{invoice.total_amount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
                     </td>
                     <td className="px-3 py-2.5 text-right text-sm">
-                      PHP{invoice.balance_due.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                      ₱{invoice.balance_due.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
                     </td>
                     <td className="px-3 py-2.5 text-right">
                       <Input type="number" value={amountReceived} onChange={(e) => setAmountReceived(e.target.value)} className="h-9 w-28 ml-auto text-right text-sm" step="0.01" />
@@ -402,7 +422,7 @@ const handleSavePayment = async (closeAfterSave: boolean = false) => {
               <div className="w-64 space-y-1.5 text-sm">
                 <div className="flex justify-between py-1">
                   <span className="text-muted-foreground">Amount to Apply</span>
-                  <span className="font-semibold">PHP{parseFloat(amountReceived || "0").toLocaleString("en-PH", { minimumFractionDigits: 2 })}</span>
+                  <span className="font-semibold">₱{parseFloat(amountReceived || "0").toLocaleString("en-PH", { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex justify-between py-1">
                   <span className="text-muted-foreground">Amount to Credit</span>

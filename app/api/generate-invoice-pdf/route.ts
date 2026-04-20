@@ -3,6 +3,7 @@ import jsPDF from "jspdf";
 import { createClient } from "@supabase/supabase-js";
 import fs from "fs";
 import path from "path";
+import { createServer } from "@/lib/supabase-server";
 
 import "@/fonts/DejaVuSans-normal.js";
 import "@/fonts/DejaVuSans-bold.js";
@@ -16,6 +17,15 @@ export async function POST(request: NextRequest) {
         { error: "Invoice ID is required" },
         { status: 400 }
       );
+    }
+
+    // Require an authenticated user (prevents URL / body manipulation).
+    const authClient = await createServer();
+    const {
+      data: { user },
+    } = await authClient.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // ✅ Supabase — Service Role (NO cookies)
@@ -42,6 +52,12 @@ export async function POST(request: NextRequest) {
         { error: "Invoice not found" },
         { status: 404 }
       );
+    }
+
+    // Ownership check (best-effort). If your schema doesn't have created_by, rely on RLS instead.
+    // If you add multi-tenant org_id later, check against that here too.
+    if ("created_by" in (invoice as any) && (invoice as any).created_by && (invoice as any).created_by !== user.id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // Fetch items

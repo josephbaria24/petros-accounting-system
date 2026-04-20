@@ -494,7 +494,8 @@ export default function ReportsPage() {
   const [mgmtDialogTitle, setMgmtDialogTitle] = useState("");
   const [mgmtDialogPeriodLabel, setMgmtDialogPeriodLabel] = useState("");
   const [mgmtDialogRange, setMgmtDialogRange] = useState({ from: "", to: "" });
-  const [mgmtDialogLines, setMgmtDialogLines] = useState<{ label: string; value: string }[]>([]);
+  const [mgmtPdfUrl, setMgmtPdfUrl] = useState<string | null>(null);
+  const [mgmtPdfError, setMgmtPdfError] = useState<string | null>(null);
 
   // ── Create Management Report state ─────────────────────────────────────
   const [createMgmtOpen, setCreateMgmtOpen] = useState(false);
@@ -897,54 +898,28 @@ export default function ReportsPage() {
     setMgmtDialogRange({ from, to });
     setMgmtDialogOpen(true);
     setMgmtDialogLoading(true);
-    setMgmtDialogLines([]);
+    setMgmtPdfError(null);
+    if (mgmtPdfUrl) URL.revokeObjectURL(mgmtPdfUrl);
+    setMgmtPdfUrl(null);
     try {
-      if (report.id === "company-overview") {
-        const [{ data: inv }, { data: exp }, { data: bills }] = await Promise.all([
-          supabase.from("invoices").select("total_amount").neq("status", "draft").gte("issue_date", from).lte("issue_date", to),
-          supabase.from("expenses").select("amount").gte("created_at", from + "T00:00:00").lte("created_at", to + "T23:59:59"),
-          supabase.from("bills").select("total_amount").neq("status", "draft").gte("bill_date", from).lte("bill_date", to),
-        ]);
-        const revenue = (inv || []).reduce((s, i) => s + (i.total_amount || 0), 0);
-        const expTot = (exp || []).reduce((s, e) => s + e.amount, 0);
-        const billTot = (bills || []).reduce((s, b) => s + (b.total_amount || 0), 0);
-        const expenses = expTot + billTot;
-        const net = revenue - expenses;
-        setMgmtDialogLines([
-          { label: "Invoice revenue", value: formatCurrency(revenue) },
-          { label: "Expenses + bills", value: formatCurrency(expenses) },
-          { label: "Net (period)", value: formatCurrency(net) },
-        ]);
-      } else if (report.id === "sales-performance") {
-        const { data: inv } = await supabase
-          .from("invoices")
-          .select("id, total_amount")
-          .neq("status", "draft")
-          .gte("issue_date", from)
-          .lte("issue_date", to);
-        const count = (inv || []).length;
-        const total = (inv || []).reduce((s, i) => s + (i.total_amount || 0), 0);
-        setMgmtDialogLines([
-          { label: "Invoices in period", value: String(count) },
-          { label: "Total invoiced", value: formatCurrency(total) },
-          { label: "Average per invoice", value: formatCurrency(count ? total / count : 0) },
-        ]);
-      } else {
-        const [{ data: exp }, { data: bills }] = await Promise.all([
-          supabase.from("expenses").select("amount").gte("created_at", from + "T00:00:00").lte("created_at", to + "T23:59:59"),
-          supabase.from("bills").select("total_amount").neq("status", "draft").gte("bill_date", from).lte("bill_date", to),
-        ]);
-        const expTot = (exp || []).reduce((s, e) => s + e.amount, 0);
-        const billTot = (bills || []).reduce((s, b) => s + (b.total_amount || 0), 0);
-        setMgmtDialogLines([
-          { label: "Expense entries", value: formatCurrency(expTot) },
-          { label: "Bills (vendor)", value: formatCurrency(billTot) },
-          { label: "Total spend", value: formatCurrency(expTot + billTot) },
-        ]);
-      }
+      const res = await fetch("/api/reports/management/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reportName: report.name,
+          companyName: "Petrosphere Inc.",
+          from,
+          to,
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const buf = await res.arrayBuffer();
+      const blob = new Blob([buf], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      setMgmtPdfUrl(url);
     } catch (e) {
       console.error("Management preview:", e);
-      setMgmtDialogLines([{ label: "Error", value: "Could not load data for this period." }]);
+      setMgmtPdfError("Could not generate the PDF preview for this period.");
     } finally {
       setMgmtDialogLoading(false);
     }
@@ -2305,29 +2280,57 @@ export default function ReportsPage() {
         </Dialog>
 
         <Dialog open={mgmtDialogOpen} onOpenChange={setMgmtDialogOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>{mgmtDialogTitle}</DialogTitle>
+          <DialogContent className="w-[95vw] sm:max-w-[95vw] h-[90vh] max-h-[90vh] p-0 overflow-hidden flex flex-col">
+            <DialogHeader className="px-6 py-4 border-b">
+              <DialogTitle className="text-xl font-semibold">Print or save as PDF</DialogTitle>
               <DialogDescription>
-                {mgmtDialogPeriodLabel}
+                {mgmtDialogTitle}
                 {" · "}
                 {mgmtDialogRange.from && mgmtDialogRange.to
                   ? `${formatDate(mgmtDialogRange.from)} – ${formatDate(mgmtDialogRange.to)}`
                   : ""}
               </DialogDescription>
             </DialogHeader>
-            {mgmtDialogLoading ? (
-              <div className="py-10 text-center text-sm text-foreground/60">Loading…</div>
-            ) : (
-              <div className="space-y-3 border-t pt-4">
-                {mgmtDialogLines.map((line) => (
-                  <div key={line.label} className="flex justify-between gap-4 text-sm">
-                    <span className="text-foreground/80">{line.label}</span>
-                    <span className="font-medium text-foreground tabular-nums">{line.value}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+
+            <div className="flex-1 min-h-0 bg-black/5 overflow-hidden">
+              {mgmtDialogLoading ? (
+                <div className="h-full flex items-center justify-center text-sm text-foreground/60">Generating preview…</div>
+              ) : mgmtPdfError ? (
+                <div className="h-full flex items-center justify-center text-sm text-destructive">{mgmtPdfError}</div>
+              ) : mgmtPdfUrl ? (
+                <iframe
+                  title="Management report PDF preview"
+                  src={mgmtPdfUrl}
+                  className="h-full w-full bg-white"
+                />
+              ) : (
+                <div className="h-full flex items-center justify-center text-sm text-foreground/60">No preview.</div>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t bg-card flex items-center justify-end gap-3">
+              <button
+                type="button"
+                className="px-4 py-2 border rounded-md text-sm font-medium hover:bg-secondary transition-colors"
+                onClick={async () => {
+                  if (!mgmtPdfUrl) return
+                  const win = window.open(mgmtPdfUrl, "_blank", "noopener,noreferrer")
+                  win?.focus()
+                }}
+              >
+                Save as PDF
+              </button>
+              <button
+                type="button"
+                className="px-4 py-2 bg-green-700 text-white rounded-md text-sm font-medium hover:bg-green-800 transition-colors"
+                onClick={() => {
+                  const iframe = document.querySelector('iframe[title=\"Management report PDF preview\"]') as HTMLIFrameElement | null
+                  iframe?.contentWindow?.print?.()
+                }}
+              >
+                Print
+              </button>
+            </div>
           </DialogContent>
         </Dialog>
       </div>

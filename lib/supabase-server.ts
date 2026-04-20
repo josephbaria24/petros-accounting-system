@@ -15,11 +15,19 @@ export async function createServer() {
           return cookieStore.get(name)?.value;
         },
         set(name: string, value: string, options: any) {
-          // Server Components can only read cookies, not modify them
-          // Cookie modifications should happen in Server Actions or Route Handlers
+          // Route Handlers can set cookies; required for auth refresh flows.
+          try {
+            cookieStore.set({ name, value, ...options });
+          } catch {
+            // ignore when running in a read-only cookies context
+          }
         },
         remove(name: string, options: any) {
-          // Server Components can only read cookies, not modify them
+          try {
+            cookieStore.set({ name, value: "", ...options });
+          } catch {
+            // ignore when running in a read-only cookies context
+          }
         }
       }
     }

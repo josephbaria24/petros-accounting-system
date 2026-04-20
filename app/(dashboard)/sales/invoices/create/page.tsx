@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { createClient } from "@/lib/supabase-client";
+import { postInvoiceToLedger } from "@/lib/invoice-journal";
 import { generateInvoicePDF } from '@/lib/generate-invoice-pdf';
 
 type Customer = {
@@ -614,6 +615,18 @@ const reviewAndSend = async () => {
     if (itemsToInsert.length > 0) {
       const { error: itemsError } = await supabase.from("invoice_items").insert(itemsToInsert);
       if (itemsError) throw itemsError;
+    }
+
+    // Accrual posting: A/R + Sales Revenue (only when sending, not draft).
+    try {
+      await postInvoiceToLedger(supabase as any, {
+        invoiceId: invoice.id,
+        invoiceNo: invoice.invoice_no,
+        issueDate: invoice.issue_date,
+        amount: Number(invoice.balance_due ?? total),
+      });
+    } catch (e) {
+      console.error("Invoice ledger post failed:", e);
     }
 
     // Generate PDF on client-side
