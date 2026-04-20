@@ -1,5 +1,6 @@
 //app/(dashboard)/page.tsx
 
+import { unstable_noStore as noStore } from "next/cache"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -14,6 +15,9 @@ import { cn } from "@/lib/utils"
 import { DashboardInsights } from "@/components/dashboard/dashboard-insights"
 import { BankAccountsCard } from "@/components/dashboard/bank-accounts-card"
 
+/** Dashboard reads live ledger + invoices; avoid stale RSC cache after DB changes. */
+export const dynamic = "force-dynamic"
+
 // Helper function to get date ranges
 function getDateRanges() {
   const now = new Date()
@@ -25,6 +29,7 @@ function getDateRanges() {
 }
 
 export default async function Dashboard() {
+  noStore()
   const supabase = await createServer()
   
   // Auth guard - check if user is authenticated
@@ -150,22 +155,12 @@ export default async function Dashboard() {
   const thisYearStart = new Date(now.getFullYear(), 0, 1)
   const lastYearStart = new Date(now.getFullYear() - 1, 0, 1)
 
-  const quarter = Math.floor(now.getMonth() / 3) // 0..3
-  const thisQuarterStart = new Date(now.getFullYear(), quarter * 3, 1)
-  const lastQuarterStart = addMonths(thisQuarterStart, -3)
-  const lastQuarterEnd = new Date(thisQuarterStart.getTime() - 24 * 60 * 60 * 1000)
-
-  const toISODate = (d: Date) => d.toISOString().split("T")[0]
-
   const inRange = (raw: string | null, from: Date, to: Date) => {
     if (!raw) return false
     const dt = new Date(raw)
     if (Number.isNaN(dt.getTime())) return false
     return dt >= from && dt <= to
   }
-
-  const sumPayments = (from: Date, to: Date) =>
-    (payments || []).filter((p) => inRange(p.payment_date || null, from, to)).reduce((s, p) => s + Number(p.amount || 0), 0)
 
   const sumExpenses = (from: Date, to: Date) => {
     const exp = (expenses || [])
@@ -177,6 +172,16 @@ export default async function Dashboard() {
       .reduce((s, b) => s + Number(b.total_amount || 0), 0)
     return exp + bill
   }
+
+  const sumInvoiceRevenue = (from: Date, to: Date) =>
+    (invoices || [])
+      .filter((inv) => inv.status !== "draft")
+      .filter((inv) => inRange(inv.issue_date || null, from, to))
+      .reduce((s, inv) => s + Number(inv.total_amount || 0), 0)
+
+  /** Same sources as Expenses / Sales UIs: invoices for income; expenses + bills tables for spend (no orphan GL). */
+  const dashboardIncomeForRange = (from: Date, to: Date) => sumInvoiceRevenue(from, to)
+  const dashboardExpensesForRange = (from: Date, to: Date) => sumExpenses(from, to)
 
   const rangeEndOfDay = (d: Date) =>
     new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999)
@@ -350,35 +355,6 @@ export default async function Dashboard() {
     return series
   }
 
-  // Profit & Loss (Last fiscal quarter vs previous quarter)
-  const plIncome = sumPayments(lastQuarterStart, lastQuarterEnd)
-  const plExpenses = sumExpenses(lastQuarterStart, lastQuarterEnd)
-  const plNet = plIncome - plExpenses
-  const prevQuarterStart = addMonths(lastQuarterStart, -3)
-  const prevQuarterEnd = new Date(lastQuarterStart.getTime() - 24 * 60 * 60 * 1000)
-  const plPrevIncome = sumPayments(prevQuarterStart, prevQuarterEnd)
-  const plPrevExpenses = sumExpenses(prevQuarterStart, prevQuarterEnd)
-  const plPrevNet = plPrevIncome - plPrevExpenses
-
-  const shortQuarterLabel = (d: Date) => {
-    const q = Math.floor(d.getMonth() / 3) + 1
-    const yy = String(d.getFullYear()).slice(-2)
-    return `Q${q} FY${yy}`
-  }
-
-  const profitLossSeries = [
-    {
-      label: shortQuarterLabel(prevQuarterStart),
-      income: Math.round(plPrevIncome),
-      expenses: Math.round(plPrevExpenses),
-    },
-    {
-      label: shortQuarterLabel(lastQuarterStart),
-      income: Math.round(plIncome),
-      expenses: Math.round(plExpenses),
-    },
-  ]
-
   // Build working filter options for Expenses + Sales
   const expenseOptions: Record<string, { label: string; total: number; byCategory: { name: string; value: number }[] }> = {}
   const salesOptions: Record<string, { label: string; total: number; series: { month: string; amount: number }[] }> = {}
@@ -478,12 +454,12 @@ export default async function Dashboard() {
   Object.entries(ranges).forEach(([key, r]) => {
     const prev = prevRangeFor(key, r.from, r.to)
 
-    const income = sumPayments(r.from, r.to)
-    const expensesSum = sumExpenses(r.from, r.to)
+    const income = dashboardIncomeForRange(r.from, r.to)
+    const expensesSum = dashboardExpensesForRange(r.from, r.to)
     const netProfit = income - expensesSum
 
-    const prevIncome = sumPayments(prev.from, prev.to)
-    const prevExpenses = sumExpenses(prev.from, prev.to)
+    const prevIncome = dashboardIncomeForRange(prev.from, prev.to)
+    const prevExpenses = dashboardExpensesForRange(prev.from, prev.to)
     const prevNetProfit = prevIncome - prevExpenses
 
     profitLossOptions[key] = {
@@ -617,7 +593,7 @@ export default async function Dashboard() {
 
           <DashboardInsights
             profitLoss={{
-              defaultKey: "last-fiscal-quarter",
+              defaultKey: "this-month-to-date",
               options: profitLossOptions,
             }}
             expenses={{

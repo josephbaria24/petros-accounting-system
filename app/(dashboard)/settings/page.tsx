@@ -21,6 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import {
   Bell,
   CreditCard,
+  HardDrive,
   KeyRound,
   Lock,
   Settings as SettingsIcon,
@@ -33,6 +34,8 @@ import {
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { runBackupDownload } from "@/lib/backup-download-client"
+import { isBackupFileFormat, type BackupFileFormat } from "@/lib/backup-serialize"
 
 type NotificationPrefs = {
   email: boolean
@@ -53,6 +56,8 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState("profile")
   const [savingProfile, setSavingProfile] = useState(false)
   const [savingNotifs, setSavingNotifs] = useState(false)
+  const [savingBackup, setSavingBackup] = useState(false)
+  const [runningBackup, setRunningBackup] = useState(false)
   const [sendingReset, setSendingReset] = useState(false)
 
   const [profileForm, setProfileForm] = useState({
@@ -63,6 +68,11 @@ export default function Settings() {
     company: "",
     location: "",
   })
+
+  const [backupDaily, setBackupDaily] = useState(false)
+  const [backupTime, setBackupTime] = useState("16:30")
+  const [backupTimezone, setBackupTimezone] = useState("Asia/Manila")
+  const [backupFileFormat, setBackupFileFormat] = useState<BackupFileFormat>("json")
 
   const [notifs, setNotifs] = useState<NotificationPrefs>({
     email: true,
@@ -101,6 +111,14 @@ export default function Settings() {
       paymentAlerts: metaBool(meta, "notif_payment_alerts", true),
       securityAlerts: metaBool(meta, "notif_security_alerts", true),
     })
+
+    setBackupDaily(meta.backup_daily_enabled === true)
+    const t = meta.backup_local_time
+    setBackupTime(typeof t === "string" && t.length >= 4 ? t.slice(0, 5) : "16:30")
+    const z = meta.backup_timezone
+    setBackupTimezone(typeof z === "string" && z.trim() ? z.trim() : "Asia/Manila")
+    const f = meta.backup_file_format
+    setBackupFileFormat(isBackupFileFormat(f) ? f : "json")
   }, [data])
 
   const name = useMemo(() => {
@@ -117,8 +135,10 @@ export default function Settings() {
     setSavingProfile(true)
     try {
       const supabase = createClient()
+      const prev = (data.user.user_metadata ?? {}) as Record<string, unknown>
       const { error: authErr } = await supabase.auth.updateUser({
         data: {
+          ...prev,
           full_name: profileForm.fullName.trim() || undefined,
           phone: profileForm.phone.trim() || undefined,
           job_title: profileForm.jobTitle.trim() || undefined,
@@ -145,8 +165,10 @@ export default function Settings() {
     setSavingNotifs(true)
     try {
       const supabase = createClient()
+      const prev = (data.user.user_metadata ?? {}) as Record<string, unknown>
       const { error: authErr } = await supabase.auth.updateUser({
         data: {
+          ...prev,
           notif_email: notifs.email,
           notif_sms: notifs.sms,
           notif_in_app: notifs.inApp,
@@ -166,6 +188,53 @@ export default function Settings() {
       })
     } finally {
       setSavingNotifs(false)
+    }
+  }
+
+  const saveBackupPrefs = async () => {
+    if (!data?.user) return
+    setSavingBackup(true)
+    try {
+      const supabase = createClient()
+      const prev = (data.user.user_metadata ?? {}) as Record<string, unknown>
+      const { error: authErr } = await supabase.auth.updateUser({
+        data: {
+          ...prev,
+          backup_daily_enabled: backupDaily,
+          backup_local_time: backupTime.slice(0, 5),
+          backup_timezone: backupTimezone,
+          backup_file_format: backupFileFormat,
+        },
+      })
+      if (authErr) throw authErr
+      await mutate()
+      toast({ title: "Saved", description: "Backup schedule updated." })
+    } catch (e: unknown) {
+      toast({
+        title: "Could not save",
+        description: e instanceof Error ? e.message : "Update failed.",
+        variant: "destructive",
+      })
+    } finally {
+      setSavingBackup(false)
+    }
+  }
+
+  const downloadBackupNow = async () => {
+    setRunningBackup(true)
+    try {
+      const ok = await runBackupDownload(backupFileFormat)
+      if (ok) {
+        toast({ title: "Backup downloaded", description: "Your data export finished successfully." })
+      } else {
+        toast({
+          title: "Backup failed",
+          description: "Could not create the export. Try signing in again.",
+          variant: "destructive",
+        })
+      }
+    } finally {
+      setRunningBackup(false)
     }
   }
 
@@ -325,6 +394,7 @@ export default function Settings() {
                 { value: "team", label: "Team", icon: Users },
                 { value: "billing", label: "Billing", icon: CreditCard },
                 { value: "notifications", label: "Notifications", icon: Bell },
+                { value: "backup", label: "Backup", icon: HardDrive },
                 { value: "security", label: "Security", icon: Shield },
               ].map((tab) => (
                 <TabsTrigger
@@ -500,6 +570,137 @@ export default function Settings() {
                     "Save preferences"
                   )}
                 </Button>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="backup" className="mt-0 outline-none">
+            <div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white/90 shadow-[0_8px_30px_-12px_rgba(15,23,42,0.08)]">
+              <div className="border-b border-slate-100 px-6 py-6 sm:px-8">
+                <h3 className="text-lg font-semibold text-slate-900">Data backup</h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  Export your PetroBook tables as <strong className="font-medium text-slate-800">JSON</strong>,{" "}
+                  <strong className="font-medium text-slate-800">XML</strong>, or{" "}
+                  <strong className="font-medium text-slate-800">Excel</strong> (.xlsx, one sheet per table).
+                </p>
+                <p className="mt-2 rounded-xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-950">
+                  <strong className="font-semibold">Automatic download:</strong> turn on{" "}
+                  <span className="font-medium">Daily automatic backup</span>, set time, timezone, and file format, then
+                  click <span className="font-medium">Save backup settings</span>. With PetroBook left open in a browser
+                  tab, the file downloads by itself at that time each day—you do <em>not</em> need{" "}
+                  <span className="font-medium">Download backup now</span> for that (that button is only for an extra copy
+                  whenever you want).
+                </p>
+              </div>
+              <div className="space-y-6 p-6 sm:p-8">
+                <div className="flex flex-col gap-4 rounded-2xl border border-slate-100 bg-slate-50/50 p-5 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="font-medium text-slate-900">Daily automatic backup</p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      After you save settings, your browser downloads the backup at that time while this site stays open.
+                    </p>
+                  </div>
+                  <Switch checked={backupDaily} onCheckedChange={setBackupDaily} />
+                </div>
+
+                <div className="grid gap-6 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Local time</Label>
+                    <Input
+                      type="time"
+                      className="h-11 rounded-xl border-slate-200 bg-slate-50/50"
+                      value={backupTime.length >= 5 ? backupTime.slice(0, 5) : "16:30"}
+                      onChange={(e) => setBackupTime(e.target.value || "16:30")}
+                      disabled={!backupDaily}
+                    />
+                    <p className="text-xs text-slate-500">Example: 4:30 PM → set to 16:30.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Timezone</Label>
+                    <select
+                      className="flex h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-sm text-slate-900 shadow-inner disabled:opacity-50"
+                      value={backupTimezone}
+                      onChange={(e) => setBackupTimezone(e.target.value)}
+                      disabled={!backupDaily}
+                    >
+                      {[
+                        "Asia/Manila",
+                        "Asia/Singapore",
+                        "Asia/Tokyo",
+                        "Asia/Dubai",
+                        "Europe/London",
+                        "Europe/Paris",
+                        "America/New_York",
+                        "America/Los_Angeles",
+                        "Australia/Sydney",
+                        "UTC",
+                      ].map((z) => (
+                        <option key={z} value={z}>
+                          {z}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-amber-100 bg-amber-50/60 p-4 text-sm text-amber-950">
+                  <strong className="font-semibold">Note:</strong> the scheduled backup only runs while PetroBook is open in
+                  a browser tab. If you need backups while offline, use Supabase project backups or run &quot;Download now&quot;
+                  when signed in.
+                </div>
+
+                <div className="space-y-3 border-t border-slate-100 pt-6">
+                  <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">File format</Label>
+                      <select
+                        className="flex h-11 w-full max-w-md rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-sm text-slate-900 shadow-inner"
+                        value={backupFileFormat}
+                        onChange={(e) => setBackupFileFormat(e.target.value as BackupFileFormat)}
+                      >
+                        <option value="json">JSON (.json) — best for re-import / tools</option>
+                        <option value="xml">XML (.xml) — structured, readable in editors</option>
+                        <option value="xlsx">Excel (.xlsx) — one sheet per table</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-11 rounded-xl"
+                      onClick={downloadBackupNow}
+                      disabled={runningBackup}
+                    >
+                      {runningBackup ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Preparing…
+                        </>
+                      ) : (
+                        <>
+                          <HardDrive className="mr-2 h-4 w-4" />
+                          Download backup now
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      type="button"
+                      className="h-11 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 px-8 font-semibold text-white shadow-lg shadow-emerald-900/15 hover:from-emerald-500 hover:to-teal-500"
+                      onClick={saveBackupPrefs}
+                      disabled={savingBackup}
+                    >
+                      {savingBackup ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Saving…
+                        </>
+                      ) : (
+                        "Save backup settings"
+                      )}
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
           </TabsContent>

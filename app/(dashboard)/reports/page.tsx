@@ -642,59 +642,27 @@ export default function ReportsPage() {
   const fetchPnL = async (from: string, to: string) => {
     setLoadingPnl(true);
     try {
-      const [
-        { data: incomeAccounts },
-        { data: expenseAccounts },
-        { data: journalLines },
-        { data: invoices },
-        { data: expenses },
-        { data: bills },
-      ] = await Promise.all([
-        supabase.from("accounts").select("id, name").eq("type", "income").order("name"),
-        supabase.from("accounts").select("id, name").eq("type", "expense").order("name"),
-        supabase.from("journal_lines").select("account_id, debit, credit"),
+      const [{ data: invoices }, { data: expenses }, { data: bills }] = await Promise.all([
         supabase.from("invoices").select("total_amount").neq("status", "draft").gte("issue_date", from).lte("issue_date", to),
         supabase.from("expenses").select("amount, category").gte("created_at", from).lte("created_at", to),
         supabase.from("bills").select("total_amount").neq("status", "draft").gte("bill_date", from).lte("bill_date", to),
       ]);
 
-      // Journal balances (credit - debit for income; debit - credit for expenses)
-      const journalBalances: Record<string, number> = {};
-      for (const line of journalLines || []) {
-        if (!line.account_id) continue;
-        journalBalances[line.account_id] = (journalBalances[line.account_id] || 0) + (line.credit || 0) - (line.debit || 0);
-      }
-
-      // ── Income ──
+      // Income / expenses from the same operational tables as Sales and Expenses screens (not the GL alone).
+      const invoiceTotal = (invoices || []).reduce((s, i) => s + (i.total_amount || 0), 0);
       const incomeItems: PnLLineItem[] = [];
-      let journalIncomeTotal = 0;
-      for (const acct of incomeAccounts || []) {
-        const bal = journalBalances[acct.id] || 0;
-        if (bal !== 0) { incomeItems.push({ label: acct.name, amount: bal }); journalIncomeTotal += bal; }
-      }
-      if (journalIncomeTotal === 0) {
-        const invoiceTotal = (invoices || []).reduce((s, i) => s + (i.total_amount || 0), 0);
-        if (invoiceTotal !== 0) incomeItems.push({ label: "Sales", amount: invoiceTotal });
-      }
+      if (invoiceTotal !== 0) incomeItems.push({ label: "Sales", amount: invoiceTotal });
       const totalIncome = incomeItems.reduce((s, i) => s + i.amount, 0);
 
-      // ── Expenses ──
       const expenseItems: PnLLineItem[] = [];
-      let journalExpenseTotal = 0;
-      for (const acct of expenseAccounts || []) {
-        const bal = (journalBalances[acct.id] || 0) * -1;
-        if (bal !== 0) { expenseItems.push({ label: acct.name, amount: bal }); journalExpenseTotal += Math.abs(bal); }
+      const expByCat: Record<string, number> = {};
+      for (const e of expenses || []) {
+        const cat = e.category || "Other";
+        expByCat[cat] = (expByCat[cat] || 0) + e.amount;
       }
-      if (journalExpenseTotal === 0) {
-        const expByCat: Record<string, number> = {};
-        for (const e of expenses || []) {
-          const cat = e.category || "Other";
-          expByCat[cat] = (expByCat[cat] || 0) + e.amount;
-        }
-        for (const [label, amount] of Object.entries(expByCat)) expenseItems.push({ label, amount });
-        const billsTotal = (bills || []).reduce((s, b) => s + (b.total_amount || 0), 0);
-        if (billsTotal > 0) expenseItems.push({ label: "Bills / Vendor Costs", amount: billsTotal });
-      }
+      for (const [label, amount] of Object.entries(expByCat)) expenseItems.push({ label, amount });
+      const billsTotal = (bills || []).reduce((s, b) => s + (b.total_amount || 0), 0);
+      if (billsTotal > 0) expenseItems.push({ label: "Bills / Vendor Costs", amount: billsTotal });
       expenseItems.sort((a, b) => a.label.localeCompare(b.label));
       const totalExpenses = expenseItems.reduce((s, i) => s + i.amount, 0);
 
@@ -721,8 +689,6 @@ export default function ReportsPage() {
         { data: unpaidInvoices },
         { data: unpaidBills },
         { data: assetAccounts },
-        { data: liabilityAccounts },
-        { data: equityAccounts },
         { data: journalLines },
         { data: allInvoices },
         { data: allExpenses },
@@ -731,22 +697,21 @@ export default function ReportsPage() {
         supabase.from("invoices").select("balance_due").in("status", ["sent", "partial", "overdue"]).lte("issue_date", asOfDate),
         supabase.from("bills").select("balance_due").in("status", ["unpaid", "partial", "overdue"]).lte("bill_date", asOfDate),
         supabase.from("accounts").select("id, name").eq("type", "asset").order("name"),
-        supabase.from("accounts").select("id, name").eq("type", "liability").order("name"),
-        supabase.from("accounts").select("id, name").eq("type", "equity").order("name"),
         supabase.from("journal_lines").select("account_id, debit, credit"),
         supabase.from("invoices").select("total_amount").neq("status", "draft").lte("issue_date", asOfDate),
         supabase.from("expenses").select("amount").lte("created_at", asOfDate),
         supabase.from("bills").select("total_amount").neq("status", "draft").lte("bill_date", asOfDate),
       ]);
 
-      // Journal-based account balances
+      // Journal-based balance per account (debit − credit), same raw sum as before
       const journalBalances: Record<string, number> = {};
       for (const line of journalLines || []) {
         if (!line.account_id) continue;
-        journalBalances[line.account_id] = (journalBalances[line.account_id] || 0) + (line.debit || 0) - (line.credit || 0);
+        journalBalances[line.account_id] =
+          (journalBalances[line.account_id] || 0) + (line.debit || 0) - (line.credit || 0);
       }
 
-      // AR sub-group
+      // AR sub-group (open invoices only)
       const arTotal = (unpaidInvoices || []).reduce((s, i) => s + (i.balance_due || 0), 0);
       const arSubGroup: BSSubGroup = {
         label: "Accounts Receivable",
@@ -754,14 +719,12 @@ export default function ReportsPage() {
         total: arTotal,
       };
 
-      // Current asset items from chart of accounts
-      const currentAssetItems: BSLineItem[] = [];
+      // Every asset on the chart of accounts, including ₱0 (ledger balance)
+      const currentAssetItems: BSLineItem[] = (assetAccounts || []).map((acct) => ({
+        label: acct.name,
+        amount: journalBalances[acct.id] || 0,
+      }));
       const longTermAssetItems: BSLineItem[] = [];
-      for (const acct of assetAccounts || []) {
-        const bal = journalBalances[acct.id] || 0;
-        if (bal !== 0) currentAssetItems.push({ label: acct.name, amount: bal });
-      }
-      currentAssetItems.sort((a, b) => a.label.localeCompare(b.label));
 
       const currentAssetsTotal = arSubGroup.total + currentAssetItems.reduce((s, i) => s + i.amount, 0);
       const longTermAssetsTotal = longTermAssetItems.reduce((s, i) => s + i.amount, 0);
@@ -775,40 +738,33 @@ export default function ReportsPage() {
         total: apTotal,
       };
 
-      // Current liability items
+      // No separate GL liability lines — matches Bills tab as source of payables
       const currentLiabilityItems: BSLineItem[] = [];
       const nonCurrentLiabilityItems: BSLineItem[] = [];
-      for (const acct of liabilityAccounts || []) {
-        const bal = (journalBalances[acct.id] || 0) * -1;
-        if (bal !== 0) currentLiabilityItems.push({ label: acct.name, amount: bal });
-      }
-      currentLiabilityItems.sort((a, b) => a.label.localeCompare(b.label));
 
       const currentLiabilitiesTotal = apSubGroup.total + currentLiabilityItems.reduce((s, i) => s + i.amount, 0);
       const nonCurrentLiabilitiesTotal = nonCurrentLiabilityItems.reduce((s, i) => s + i.amount, 0);
       const totalLiabilities = currentLiabilitiesTotal + nonCurrentLiabilitiesTotal;
 
-      // Shareholder's Equity
+      // Equity: net income from invoices / expenses / bills (same basis as P&L), plus plug so A = L + E
       const totalRevenue = (allInvoices || []).reduce((s, i) => s + (i.total_amount || 0), 0);
       const totalExpensesAmt = (allExpenses || []).reduce((s, e) => s + e.amount, 0);
       const totalBillsAmt = (allBills || []).reduce((s, b) => s + (b.total_amount || 0), 0);
       const netIncome = totalRevenue - totalExpensesAmt - totalBillsAmt;
 
-      const equityItems: BSLineItem[] = [];
-      let journalEquityTotal = 0;
-      for (const acct of equityAccounts || []) {
-        const bal = (journalBalances[acct.id] || 0) * -1;
-        if (bal !== 0) { equityItems.push({ label: acct.name, amount: bal }); journalEquityTotal += bal; }
-      }
-      equityItems.sort((a, b) => a.label.localeCompare(b.label));
+      const totalEquityFromEquation = totalAssets - totalLiabilities;
+      const otherEquity = totalEquityFromEquation - netIncome;
 
-      const openingBalanceEquity = totalAssets - totalLiabilities - netIncome - journalEquityTotal;
       const finalEquityItems: BSLineItem[] = [
-        { label: "Opening Balance Equity", amount: openingBalanceEquity },
-        ...equityItems,
-        { label: "Retained Earnings", amount: 0 },
         { label: "Net Income", amount: netIncome },
+        { label: "Retained Earnings", amount: 0 },
       ];
+      if (Math.abs(otherEquity) > 0.005) {
+        finalEquityItems.push({
+          label: "Other equity & adjustments",
+          amount: otherEquity,
+        });
+      }
       const totalEquity = finalEquityItems.reduce((s, i) => s + i.amount, 0);
 
       setBsData({
