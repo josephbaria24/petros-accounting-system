@@ -91,11 +91,13 @@ const groupedMenu: MenuGroup[] = [
         title: "Expenses", 
         url: "/expenses", 
         icon: Receipt,
+        activePathPrefixes: ["/expenses", "/accounts"],
         submenu: [
           { title: "Expenses", url: "/expenses?tab=expenses" },
           { title: "Bills", url: "/expenses?tab=bills" },
           { title: "Purchase orders", url: "/expenses?tab=purchase-orders" },
           { title: "Suppliers", url: "/expenses?tab=suppliers" },
+          { title: "Chart of accounts", url: "/expenses?tab=chart-of-accounts" },
         ],
       },
     ],

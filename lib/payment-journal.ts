@@ -29,31 +29,35 @@ function clampIsoDate(d: string): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-async function assertDepositAssetAccount(supabase: Client, accountId: string): Promise<void> {
+const DEPOSIT_ALLOWED = new Set(["asset", "liability", "income", "expense"])
+
+async function assertDepositPostingAccount(supabase: Client, accountId: string): Promise<void> {
   const id = String(accountId || "").trim()
   if (!id) throw new Error("Choose a deposit account from Chart of Accounts.")
 
   const { data: row, error } = await supabase.from("accounts").select("id, type, name").eq("id", id).maybeSingle()
   if (error) throw new Error(error.message)
   if (!row?.id) throw new Error("Deposit account not found.")
-  if (row.type !== "asset") throw new Error("Deposit account must be an asset (Chart of Accounts).")
+  if (!row.type || !DEPOSIT_ALLOWED.has(row.type)) {
+    throw new Error("Deposit account must be an asset, liability, income, or expense row from Chart of Accounts.")
+  }
 
   const n = String(row.name || "").trim().toLowerCase()
   if (n === AR_NAME.toLowerCase()) {
-    throw new Error("Choose a cash or bank asset, not Accounts Receivable.")
+    throw new Error("Choose a different account than Accounts Receivable.")
   }
 }
 
 /**
  * Posts a journal entry for a received invoice payment:
- * - Debit: selected Chart of Accounts asset (deposit target)
+ * - Debit: selected Chart of Accounts account (asset, liability, income, or expense)
  * - Credit: Accounts Receivable (asset)
  */
 export async function postPaymentToLedger(
   supabase: Client,
   params: {
     paymentId: string
-    /** Chart of `accounts.id` — must be type `asset` (e.g. Cash on hand, BPI, Petty cash). */
+    /** Chart of `accounts.id` — asset, liability, income, or expense (e.g. Cash on hand, Sales Revenue). */
     depositAccountId: string
     amount: number
     entryDate: string
@@ -63,7 +67,7 @@ export async function postPaymentToLedger(
   const amount = Math.round((Number(params.amount) || 0) * 100) / 100
   if (!Number.isFinite(amount) || amount <= 0) return
 
-  await assertDepositAssetAccount(supabase, params.depositAccountId)
+  await assertDepositPostingAccount(supabase, params.depositAccountId)
   const depositId = params.depositAccountId.trim()
 
   const arId = await ensureArAccount(supabase)

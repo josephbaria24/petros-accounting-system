@@ -11,14 +11,16 @@ import ExpensesDashboard from "@/components/expenses-tabs/expenses-table"
 
 import SuppliersTable from "@/components/expenses-tabs/suppliers-table"
 import BillsTable from "@/components/expenses-tabs/bills-table"
-import PurchaseOrdersTable from "@/components/expenses-tabs/purchase-table"
+import ChartOfAccountsPage from "@/app/(dashboard)/accounts/page"
 
+const EXPENSE_TABS = new Set(["expenses", "bills", "suppliers", "chart-of-accounts"])
 
 export default function ExpensesPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
 
-  const tabFromURL = searchParams.get("tab") || "expenses"
+  const rawTab = searchParams.get("tab") || "expenses"
+  const tabFromURL = EXPENSE_TABS.has(rawTab) ? rawTab : "expenses"
   const [activeTab, setActiveTab] = useState(tabFromURL)
 
   // Sync tab with URL changes
@@ -51,6 +53,9 @@ export default function ExpensesPage() {
           <TabsTrigger value="suppliers" className="rounded-lg px-3">
             Suppliers
           </TabsTrigger>
+          <TabsTrigger value="chart-of-accounts" className="rounded-lg px-3">
+            Chart of accounts
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="expenses" className="mt-4">
@@ -67,6 +72,10 @@ export default function ExpensesPage() {
 
         <TabsContent value="suppliers" className="mt-4">
           <SuppliersTable />
+        </TabsContent>
+
+        <TabsContent value="chart-of-accounts" className="mt-4 -mx-4 sm:-mx-6 lg:-mx-8">
+          <ChartOfAccountsPage />
         </TabsContent>
       </Tabs>
     </div>

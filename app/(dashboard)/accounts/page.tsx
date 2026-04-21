@@ -27,6 +27,7 @@ import {
 } from "@/components/accounts/adjust-balance-dialog";
 import { createClient } from "@/lib/supabase-client";
 import { removeOrphanInvoicePaymentLedgers } from "@/lib/invoice-journal";
+import { isAccountHiddenFromCoaUi } from "@/lib/coa-visibility";
 import { useToast } from "@/hooks/use-toast";
 import {
   displayBalanceForAccountType,
@@ -94,7 +95,7 @@ export default function ChartOfAccountsPage() {
       ]);
       if (accErr) throw new Error(accErr.message);
 
-      const list = (accounts || []) as PaymentAccountRow[];
+      const list = ((accounts || []) as PaymentAccountRow[]).filter((a) => !isAccountHiddenFromCoaUi(a.name));
       const coa: CoaRow[] = list.map((a) => {
         const raw = rawById[a.id] ?? 0;
         return {

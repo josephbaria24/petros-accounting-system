@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isAccountHiddenFromCoaUi } from "@/lib/coa-visibility";
 
 export type PaymentAccountRow = {
   id: string;
@@ -45,23 +46,28 @@ export function paymentAccountCategoryLabel(account: PaymentAccountRow): string 
   if (d) return d;
   if (account.type === "asset") return "Asset";
   if (account.type === "liability") return "Liability";
+  if (account.type === "income") return "Income";
+  if (account.type === "expense") return "Expense";
   return account.type;
 }
 
-/** Accounts you can pay from: cash, bank, credit card, other funded accounts (assets + credit cards / pay-from liabilities). */
+/**
+ * Accounts available for “pay from” / similar pickers: assets, liabilities, income, and expense
+ * (full COA slice so e.g. Sales Revenue and expense lines can be chosen when you require them).
+ */
 export async function fetchPaymentAccountsForExpense(
   supabase: SupabaseClient,
 ): Promise<PaymentAccountRow[]> {
   const { data, error } = await supabase
     .from("accounts")
     .select("id, name, type, description")
-    .in("type", ["asset", "liability"])
+    .in("type", ["asset", "liability", "income", "expense"])
     .order("name");
   if (error) {
     console.error(error);
     return [];
   }
-  return (data || []) as PaymentAccountRow[];
+  return ((data || []) as PaymentAccountRow[]).filter((a) => !isAccountHiddenFromCoaUi(a.name));
 }
 
 /** UI slugs for the payment account dropdown — must match rows in Chart of Accounts (`accounts.name`) */

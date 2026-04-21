@@ -95,7 +95,7 @@ export function PaymentAccountSelect({
               <p className="px-3 py-6 text-sm text-muted-foreground text-center">Loading accounts…</p>
             ) : accounts.length === 0 ? (
               <p className="px-3 py-6 text-sm text-muted-foreground text-center">
-                No asset or liability accounts yet.{" "}
+                No asset, liability, income, or expense accounts yet.{" "}
                 <Link href="/accounts" className="text-blue-600 underline">
                   Chart of accounts
                 </Link>

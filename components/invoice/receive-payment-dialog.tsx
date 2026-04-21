@@ -23,6 +23,11 @@ import {
 } from "@/components/ui/dialog";
 import { createClient } from "@/lib/supabase-client";
 import { postPaymentToLedger } from "@/lib/payment-journal";
+import {
+  paymentAccountCategoryLabel,
+  type PaymentAccountRow,
+} from "@/lib/payment-account-balances";
+import { isAccountHiddenFromCoaUi } from "@/lib/coa-visibility";
 
 export interface SelectedInvoiceForPayment {
   id: string;
@@ -49,7 +54,6 @@ type Attachment = {
   file_type: string;
 };
 
-type DepositCoaRow = { id: string; name: string; description: string | null };
 
 export default function ReceivePaymentDialog({
   open,
@@ -62,7 +66,7 @@ export default function ReceivePaymentDialog({
   );
   const [paymentMethod, setPaymentMethod] = useState("");
   const [referenceNo, setReferenceNo] = useState("");
-  const [depositAccounts, setDepositAccounts] = useState<DepositCoaRow[]>([]);
+  const [depositAccounts, setDepositAccounts] = useState<PaymentAccountRow[]>([]);
   const [depositAccountId, setDepositAccountId] = useState("");
   const [depositAccountsLoading, setDepositAccountsLoading] = useState(false);
   const [amountReceived, setAmountReceived] = useState(
@@ -90,7 +94,7 @@ export default function ReceivePaymentDialog({
     "Online Payment",
   ];
 
-  // Load Chart of Accounts asset rows (same pool as COA); exclude A/R as a deposit target.
+  // Load Chart of Accounts: assets, liabilities, income, and expense (excludes equity); exclude A/R as deposit target.
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -100,14 +104,12 @@ export default function ReceivePaymentDialog({
         const supabase = createClient();
         const { data, error } = await supabase
           .from("accounts")
-          .select("id, name, description")
-          .eq("type", "asset")
+          .select("id, name, type, description")
+          .in("type", ["asset", "liability", "income", "expense"])
           .order("name");
         if (error) throw error;
-        const rows = (data || []) as DepositCoaRow[];
-        const filtered = rows.filter(
-          (a) => a.name.trim().toLowerCase() !== "accounts receivable",
-        );
+        const rows = (data || []) as PaymentAccountRow[];
+        const filtered = rows.filter((a) => !isAccountHiddenFromCoaUi(a.name));
         if (cancelled) return;
         setDepositAccounts(filtered);
         const prefer = filtered.find((a) => a.name.trim().toLowerCase() === "cash on hand");
@@ -421,8 +423,8 @@ const handleSavePayment = async (closeAfterSave: boolean = false) => {
                   </SelectTrigger>
                   <SelectContent className="max-h-[min(60vh,22rem)] max-w-[min(calc(100vw-2rem),36rem)] overflow-y-auto">
                     {depositAccounts.map((acc) => {
-                      const sub = acc.description?.trim();
-                      const label = sub ? `${acc.name} · ${sub}` : acc.name;
+                      const cat = paymentAccountCategoryLabel(acc);
+                      const label = `${acc.name} · ${cat}`;
                       return (
                         <SelectItem key={acc.id} value={acc.id} textValue={acc.name}>
                           <span className="line-clamp-2 text-left">{label}</span>
