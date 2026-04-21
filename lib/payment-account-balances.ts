@@ -138,6 +138,10 @@ export function formatPhpBalance(amount: number | null): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  if (amount < 0) return `-PHP${abs}`;
-  return `PHP${abs}`;
+  if (amount < 0) return `-₱${abs}`;
+  return `₱${abs}`;
+}
+
+export function isPaymentAccountSlug(v: unknown): v is PaymentAccountSlug {
+  return typeof v === "string" && (PAYMENT_ACCOUNT_SLUGS as readonly string[]).includes(v);
 }

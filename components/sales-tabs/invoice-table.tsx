@@ -26,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useRouter, useSearchParams } from "next/navigation"
+import { removeLedgerForDeletedInvoices } from "@/lib/invoice-journal"
 import ReceivePaymentDialog from "../invoice/receive-payment-dialog"
 import SendReminderDialog from "../invoice/send-reminder-dialog"
 import BatchSendReminderDialog from "../invoice/batch-send-reminder-dialog"
@@ -161,12 +162,14 @@ export default function InvoicesTable() {
 
     const ids = Array.from(selectedRows)
     const ok = confirm(
-      `Delete ${ids.length} invoice${ids.length > 1 ? "s" : ""}?\n\nThis will also delete related invoice items, tags, reminders, and payments.`
+      `Delete ${ids.length} invoice${ids.length > 1 ? "s" : ""}?\n\nThis will also delete related invoice items, tags, reminders, payments, and their general-ledger postings (Chart of Accounts balances).`
     )
     if (!ok) return
 
     setDeleting(true)
     try {
+      await removeLedgerForDeletedInvoices(supabase, ids)
+
       // 1) invoice_reminders
       const { error: remindersErr } = await supabase
         .from("invoice_reminders")

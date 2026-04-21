@@ -5,7 +5,7 @@ import { sileo } from "sileo"
 import { useEffect, useState, type ReactNode } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase-client"
-import { postInvoiceToLedger } from "@/lib/invoice-journal"
+import { postInvoiceToLedger, removeInvoiceLedgerPosting } from "@/lib/invoice-journal"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
@@ -505,16 +505,18 @@ export default function InvoiceDetailPage() {
         setInvoice(updatedInvoice)
       }
 
-      // Keep ledger in sync for accrual invoices (skip drafts).
+      // Keep ledger in sync for accrual invoices; drafts / zero totals remove the accrual posting.
       try {
         const status = String(editForm.status || "").toLowerCase()
         if (status && status !== "draft") {
-          await postInvoiceToLedger(supabase as any, {
+          await postInvoiceToLedger(supabase, {
             invoiceId,
             invoiceNo: editForm.invoice_no,
             issueDate: editForm.issue_date || null,
             amount: totals.total,
           })
+        } else {
+          await removeInvoiceLedgerPosting(supabase, invoiceId)
         }
       } catch (e) {
         console.error("Invoice ledger sync failed:", e)

@@ -10,23 +10,30 @@ const OPENING_EQUITY_NAME = "Opening Balance Equity";
 /** Untyped client avoids `never` inference issues with generated `Database` in some builds. */
 type Client = SupabaseClient;
 
-/** Ensure the four payment asset accounts exist (exact name, type asset). */
+/** Ensure the four payment asset accounts exist (type asset; name matched case-insensitively). */
 export async function ensurePaymentAssetAccounts(supabase: Client): Promise<
   Record<PaymentAccountSlug, string>
 > {
+  const { data: assetRows, error: listErr } = await supabase
+    .from("accounts")
+    .select("id, name")
+    .eq("type", "asset");
+  if (listErr) throw new Error(listErr.message);
+
+  const firstIdByNorm = new Map<string, string>();
+  for (const row of assetRows || []) {
+    const k = row.name.trim().toLowerCase();
+    if (!firstIdByNorm.has(k)) firstIdByNorm.set(k, row.id);
+  }
+
   const ids: Partial<Record<PaymentAccountSlug, string>> = {};
 
   for (const slug of PAYMENT_ACCOUNT_SLUGS) {
     const name = SLUG_TO_CANONICAL_NAME[slug];
-    const { data: found } = await supabase
-      .from("accounts")
-      .select("id")
-      .eq("type", "asset")
-      .eq("name", name)
-      .maybeSingle();
-
-    if (found?.id) {
-      ids[slug] = found.id;
+    const key = name.trim().toLowerCase();
+    const existingId = firstIdByNorm.get(key);
+    if (existingId) {
+      ids[slug] = existingId;
       continue;
     }
 
@@ -42,6 +49,7 @@ export async function ensurePaymentAssetAccounts(supabase: Client): Promise<
 
     if (error) throw new Error(error.message);
     ids[slug] = created!.id;
+    firstIdByNorm.set(key, created!.id);
   }
 
   return ids as Record<PaymentAccountSlug, string>;

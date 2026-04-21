@@ -49,6 +49,8 @@ type Attachment = {
   file_type: string;
 };
 
+type DepositCoaRow = { id: string; name: string; description: string | null };
+
 export default function ReceivePaymentDialog({
   open,
   onOpenChange,
@@ -60,7 +62,9 @@ export default function ReceivePaymentDialog({
   );
   const [paymentMethod, setPaymentMethod] = useState("");
   const [referenceNo, setReferenceNo] = useState("");
-  const [depositTo, setDepositTo] = useState("cash-on-hand");
+  const [depositAccounts, setDepositAccounts] = useState<DepositCoaRow[]>([]);
+  const [depositAccountId, setDepositAccountId] = useState("");
+  const [depositAccountsLoading, setDepositAccountsLoading] = useState(false);
   const [amountReceived, setAmountReceived] = useState(
     invoice.balance_due.toString(),
   );
@@ -86,17 +90,53 @@ export default function ReceivePaymentDialog({
     "Online Payment",
   ];
 
-  // Deposit to options
-  const depositOptions = [
-    { value: "cash-on-hand", label: "Cash on hand" },
-    { value: "bank-account", label: "Bank Account" },
-    { value: "petty-cash", label: "Petty Cash" },
-  ];
+  // Load Chart of Accounts asset rows (same pool as COA); exclude A/R as a deposit target.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setDepositAccountsLoading(true);
+    (async () => {
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from("accounts")
+          .select("id, name, description")
+          .eq("type", "asset")
+          .order("name");
+        if (error) throw error;
+        const rows = (data || []) as DepositCoaRow[];
+        const filtered = rows.filter(
+          (a) => a.name.trim().toLowerCase() !== "accounts receivable",
+        );
+        if (cancelled) return;
+        setDepositAccounts(filtered);
+        const prefer = filtered.find((a) => a.name.trim().toLowerCase() === "cash on hand");
+        setDepositAccountId((prev) => {
+          if (prev && filtered.some((a) => a.id === prev)) return prev;
+          return prefer?.id ?? filtered[0]?.id ?? "";
+        });
+      } catch (e) {
+        console.error(e);
+        if (!cancelled) {
+          setDepositAccounts([]);
+          setDepositAccountId("");
+        }
+      } finally {
+        if (!cancelled) setDepositAccountsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   // Update amount when invoice changes
   useEffect(() => {
     setAmountReceived(invoice.balance_due.toString());
   }, [invoice]);
+
+  const depositAccountLabel =
+    depositAccounts.find((a) => a.id === depositAccountId)?.name ?? "";
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -170,12 +210,22 @@ const handleSavePayment = async (closeAfterSave: boolean = false) => {
     return;
   }
 
+  if (!depositAccountId) {
+    sileo.warning({
+      title: "Deposit account required",
+      description: depositAccountsLoading
+        ? "Chart of accounts is still loading."
+        : "Choose which asset account receives this payment (from Chart of Accounts).",
+    });
+    return;
+  }
+
   setSaving(true);
   try {
     const supabase = createClient();
 
     // Prepare notes with memo and deposit info
-    let paymentNotes = `Deposited to: ${depositTo}`;
+    let paymentNotes = `Deposited to: ${depositAccountLabel || depositAccountId}`;
     if (memo) {
       paymentNotes += `\n\nMemo: ${memo}`;
     }
@@ -198,9 +248,9 @@ const handleSavePayment = async (closeAfterSave: boolean = false) => {
 
     // Post to ledger so Chart of Accounts balances update (Cash on hand / bank).
     try {
-      await postPaymentToLedger(supabase as any, {
+      await postPaymentToLedger(supabase, {
         paymentId: paymentData.id,
-        depositTo: depositTo as any,
+        depositAccountId,
         amount,
         entryDate: paymentDate,
         memo: memo || null,
@@ -263,57 +313,64 @@ const handleSavePayment = async (closeAfterSave: boolean = false) => {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton={false} className="w-[calc(100vw-2rem)] max-w-[1100px] max-h-[92vh] p-0 gap-0 overflow-hidden flex flex-col">
+      <DialogContent
+        showCloseButton={false}
+        className="flex h-[min(92vh,900px)] w-[min(100vw-1rem,1420px)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[min(96vw,1420px)]"
+      >
         {/* ── Header ── */}
-        <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center text-white shrink-0">
+        <div className="flex shrink-0 flex-col gap-3 border-b px-4 py-4 min-[520px]:flex-row min-[520px]:items-center min-[520px]:justify-between sm:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-600 text-white">
               <DollarSign className="h-4 w-4" />
             </div>
-            <div>
+            <div className="min-w-0 flex-1">
               <DialogTitle className="text-base font-semibold leading-tight">Receive Payment</DialogTitle>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
                 {invoice.customer_name} · Invoice #{invoice.invoice_no}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-lg border">
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Amount received</span>
-              <span className="text-lg font-bold text-green-700">
+          <div className="flex shrink-0 items-center justify-between gap-2 min-[520px]:justify-end">
+            <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-1.5">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">
+                Amount received
+              </span>
+              <span className="text-base font-bold text-green-700 tabular-nums sm:text-lg">
                 ₱{parseFloat(amountReceived || "0").toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
             </div>
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => onOpenChange(false)}>
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground" onClick={() => onOpenChange(false)}>
               <X className="h-4 w-4" />
             </Button>
           </div>
         </div>
 
         {/* ── Body ── */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
 
           {/* Customer Info */}
-          <div className="px-6 py-5">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="space-y-1.5">
+          <div className="px-4 py-5 sm:px-6">
+            <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="min-w-0 space-y-1.5">
                 <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Customer</Label>
-                <div className="px-3 py-2.5 border rounded-md bg-muted/30 text-sm font-medium h-10 flex items-center">
-                  {invoice.customer_name}
+                <div className="flex h-10 items-center rounded-md border bg-muted/30 px-3 text-sm font-medium">
+                  <span className="truncate">{invoice.customer_name}</span>
                 </div>
               </div>
-              <div className="space-y-1.5">
+              <div className="min-w-0 space-y-1.5">
                 <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Email</Label>
-                <div className="flex gap-2">
-                  <Input type="email" value={invoice.customer_email || ""} readOnly className="h-10 bg-muted/30" />
-                  <Button variant="outline" size="sm" className="h-10 whitespace-nowrap text-xs">Find by invoice no.</Button>
+                <div className="flex flex-col gap-2 md:flex-row md:items-stretch">
+                  <Input type="email" value={invoice.customer_email || ""} readOnly className="h-10 min-w-0 flex-1 bg-muted/30" />
+                  <Button variant="outline" size="sm" className="h-10 shrink-0 text-xs whitespace-nowrap md:px-3">
+                    Find by invoice no.
+                  </Button>
                 </div>
               </div>
-              <div className="space-y-1.5">
+              <div className="min-w-0 space-y-1.5">
                 <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cc/Bcc</Label>
-                <div className="flex items-center gap-2">
-                  <Input placeholder="" className="h-10" />
-                  <div className="flex items-center gap-1.5 shrink-0">
+                <div className="flex min-w-0 items-center gap-2">
+                  <Input placeholder="" className="h-10 min-w-0 flex-1" />
+                  <div className="flex shrink-0 items-center gap-1.5">
                     <Checkbox checked={sendLater} onCheckedChange={(checked) => setSendLater(checked as boolean)} />
                     <span className="text-xs text-muted-foreground whitespace-nowrap">Send later</span>
                   </div>
@@ -325,16 +382,16 @@ const handleSavePayment = async (closeAfterSave: boolean = false) => {
           <div className="border-t" />
 
           {/* Payment Details */}
-          <div className="px-6 py-5">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="space-y-1.5">
+          <div className="px-4 py-5 sm:px-6">
+            <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="min-w-0 space-y-1.5">
                 <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payment date</Label>
-                <Input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className="h-10" />
+                <Input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className="h-10 w-full min-w-0" />
               </div>
-              <div className="space-y-1.5">
+              <div className="min-w-0 space-y-1.5">
                 <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payment method</Label>
                 <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                  <SelectTrigger className="h-10"><SelectValue placeholder="Choose payment method" /></SelectTrigger>
+                  <SelectTrigger className="h-10 w-full min-w-0"><SelectValue placeholder="Choose payment method" /></SelectTrigger>
                   <SelectContent>
                     {paymentMethods.map((method) => (
                       <SelectItem key={method} value={method.toLowerCase().replace(/\s+/g, "-")}>{method}</SelectItem>
@@ -342,18 +399,36 @@ const handleSavePayment = async (closeAfterSave: boolean = false) => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
+              <div className="min-w-0 space-y-1.5">
                 <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Reference no.</Label>
-                <Input value={referenceNo} onChange={(e) => setReferenceNo(e.target.value)} className="h-10" />
+                <Input value={referenceNo} onChange={(e) => setReferenceNo(e.target.value)} className="h-10 w-full min-w-0" />
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Deposit to</Label>
-                <Select value={depositTo} onValueChange={setDepositTo}>
-                  <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {depositOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                    ))}
+              <div className="min-w-0 space-y-1.5 sm:col-span-2 xl:col-span-1">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Deposit to (Chart of Accounts)
+                </Label>
+                <Select
+                  value={depositAccountId}
+                  onValueChange={setDepositAccountId}
+                  disabled={depositAccountsLoading || depositAccounts.length === 0}
+                >
+                  <SelectTrigger className="h-10 w-full min-w-0 max-w-full [&>span]:truncate">
+                    <SelectValue
+                      placeholder={
+                        depositAccountsLoading ? "Loading accounts…" : "Choose deposit account"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[min(60vh,22rem)] max-w-[min(calc(100vw-2rem),36rem)] overflow-y-auto">
+                    {depositAccounts.map((acc) => {
+                      const sub = acc.description?.trim();
+                      const label = sub ? `${acc.name} · ${sub}` : acc.name;
+                      return (
+                        <SelectItem key={acc.id} value={acc.id} textValue={acc.name}>
+                          <span className="line-clamp-2 text-left">{label}</span>
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>
@@ -363,50 +438,72 @@ const handleSavePayment = async (closeAfterSave: boolean = false) => {
           <div className="border-t" />
 
           {/* ── Outstanding Transactions ── */}
-          <div className="px-6 py-5">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+          <div className="px-4 py-5 sm:px-6">
+            <div className="mb-3 flex items-center gap-2">
+              <span className="h-2 w-2 shrink-0 rounded-full bg-green-500" />
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Outstanding Transactions</h3>
             </div>
 
-            <div className="flex items-center gap-3 mb-3">
-              <Input placeholder="Find Invoice No." className="h-9 max-w-[220px] text-sm" />
-              <Button variant="outline" size="sm" className="h-9 text-xs">Filter</Button>
-              <Button variant="ghost" size="sm" className="h-9 text-xs text-green-700 hover:text-green-800">All</Button>
+            <div className="mb-3 flex min-w-0 flex-wrap items-center gap-2">
+              <Input placeholder="Find Invoice No." className="h-9 min-w-0 flex-1 text-sm sm:max-w-[240px]" />
+              <Button variant="outline" size="sm" className="h-9 shrink-0 text-xs">
+                Filter
+              </Button>
+              <Button variant="ghost" size="sm" className="h-9 shrink-0 text-xs text-green-700 hover:text-green-800">
+                All
+              </Button>
             </div>
 
-            <div className="border rounded-lg overflow-hidden">
-              <table className="w-full table-fixed text-sm">
+            <div className="min-w-0 overflow-hidden rounded-lg border">
+              <table className="w-full table-auto text-sm">
                 <thead>
                   <tr className="bg-muted/50 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    <th className="px-3 py-2.5 text-left" style={{width: 40}} />
-                    <th className="px-3 py-2.5 text-left">Description</th>
-                    <th className="px-3 py-2.5 text-left" style={{width: 110}}>Due date</th>
-                    <th className="px-3 py-2.5 text-right" style={{width: 130}}>Original amount</th>
-                    <th className="px-3 py-2.5 text-right" style={{width: 130}}>Open balance</th>
-                    <th className="px-3 py-2.5 text-right" style={{width: 130}}>Payment</th>
+                    <th className="w-10 px-2 py-2.5 text-left sm:px-3" />
+                    <th className="min-w-0 px-2 py-2.5 text-left sm:px-3">Description</th>
+                    <th className="whitespace-nowrap px-2 py-2.5 text-left sm:px-3">Due date</th>
+                    <th className="whitespace-nowrap px-2 py-2.5 text-right sm:px-3">Original</th>
+                    <th className="whitespace-nowrap px-2 py-2.5 text-right sm:px-3">Open</th>
+                    <th className="whitespace-nowrap px-2 py-2.5 text-right sm:px-3">Payment</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr className="border-t hover:bg-muted/30 transition-colors">
-                    <td className="px-3 py-2.5"><Checkbox checked /></td>
-                    <td className="px-3 py-2.5">
-                      <div className="text-green-700 font-medium text-sm">Invoice # {invoice.invoice_no}</div>
-                      <div className="text-xs text-muted-foreground">
-                        ({new Date(invoice.due_date || "").toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })})
+                  <tr className="border-t transition-colors hover:bg-muted/30">
+                    <td className="px-2 py-2.5 sm:px-3">
+                      <Checkbox checked />
+                    </td>
+                    <td className="min-w-0 max-w-px px-2 py-2.5 sm:px-3">
+                      <div className="truncate text-sm font-medium text-green-700">Invoice # {invoice.invoice_no}</div>
+                      <div className="truncate text-xs text-muted-foreground">
+                        (
+                        {new Date(invoice.due_date || "").toLocaleDateString("en-US", {
+                          month: "2-digit",
+                          day: "2-digit",
+                          year: "numeric",
+                        })}
+                        )
                       </div>
                     </td>
-                    <td className="px-3 py-2.5 text-sm">
-                      {new Date(invoice.due_date || "").toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })}
+                    <td className="whitespace-nowrap px-2 py-2.5 text-sm sm:px-3">
+                      {new Date(invoice.due_date || "").toLocaleDateString("en-US", {
+                        month: "2-digit",
+                        day: "2-digit",
+                        year: "numeric",
+                      })}
                     </td>
-                    <td className="px-3 py-2.5 text-right text-sm">
+                    <td className="whitespace-nowrap px-2 py-2.5 text-right text-sm sm:px-3">
                       ₱{invoice.total_amount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
                     </td>
-                    <td className="px-3 py-2.5 text-right text-sm">
+                    <td className="whitespace-nowrap px-2 py-2.5 text-right text-sm sm:px-3">
                       ₱{invoice.balance_due.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
                     </td>
-                    <td className="px-3 py-2.5 text-right">
-                      <Input type="number" value={amountReceived} onChange={(e) => setAmountReceived(e.target.value)} className="h-9 w-28 ml-auto text-right text-sm" step="0.01" />
+                    <td className="px-2 py-2.5 text-right sm:px-3">
+                      <Input
+                        type="number"
+                        value={amountReceived}
+                        onChange={(e) => setAmountReceived(e.target.value)}
+                        className="ml-auto h-9 w-full max-w-30 text-right text-sm sm:max-w-34"
+                        step="0.01"
+                      />
                     </td>
                   </tr>
                 </tbody>
@@ -418,8 +515,8 @@ const handleSavePayment = async (closeAfterSave: boolean = false) => {
             </div>
 
             {/* Totals */}
-            <div className="flex justify-end mt-4">
-              <div className="w-64 space-y-1.5 text-sm">
+            <div className="mt-4 flex justify-end">
+              <div className="w-full max-w-xs space-y-1.5 text-sm sm:w-72">
                 <div className="flex justify-between py-1">
                   <span className="text-muted-foreground">Amount to Apply</span>
                   <span className="font-semibold">₱{parseFloat(amountReceived || "0").toLocaleString("en-PH", { minimumFractionDigits: 2 })}</span>
@@ -440,8 +537,8 @@ const handleSavePayment = async (closeAfterSave: boolean = false) => {
           <div className="border-t" />
 
           {/* ── Memo & Attachments ── */}
-          <div className="px-6 py-5">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="px-4 py-5 sm:px-6">
+            <div className="grid min-w-0 grid-cols-1 gap-6 md:grid-cols-2">
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
@@ -493,9 +590,11 @@ const handleSavePayment = async (closeAfterSave: boolean = false) => {
         </div>
 
         {/* ── Footer ── */}
-        <div className="flex items-center justify-between px-6 py-4 border-t bg-muted/20 shrink-0">
-          <Button variant="outline" className="h-9 text-sm" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <div className="flex items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t bg-muted/20 px-4 py-4 sm:px-6">
+          <Button variant="outline" className="h-9 text-sm" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <Button variant="outline" className="h-9 text-sm">Print</Button>
             <Button className="h-9 text-sm bg-green-600 hover:bg-green-700 text-white" onClick={() => handleSavePayment(false)} disabled={saving}>
               Save

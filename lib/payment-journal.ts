@@ -1,7 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
-import type { PaymentAccountSlug } from "@/lib/payment-account-balances"
-import { SLUG_TO_CANONICAL_NAME } from "@/lib/payment-account-balances"
-import { ensurePaymentAssetAccounts } from "@/lib/opening-balance-journal"
 
 type Client = SupabaseClient
 
@@ -32,16 +29,32 @@ function clampIsoDate(d: string): string {
   return new Date().toISOString().slice(0, 10)
 }
 
+async function assertDepositAssetAccount(supabase: Client, accountId: string): Promise<void> {
+  const id = String(accountId || "").trim()
+  if (!id) throw new Error("Choose a deposit account from Chart of Accounts.")
+
+  const { data: row, error } = await supabase.from("accounts").select("id, type, name").eq("id", id).maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!row?.id) throw new Error("Deposit account not found.")
+  if (row.type !== "asset") throw new Error("Deposit account must be an asset (Chart of Accounts).")
+
+  const n = String(row.name || "").trim().toLowerCase()
+  if (n === AR_NAME.toLowerCase()) {
+    throw new Error("Choose a cash or bank asset, not Accounts Receivable.")
+  }
+}
+
 /**
  * Posts a journal entry for a received invoice payment:
- * - Debit: selected deposit account (asset)
+ * - Debit: selected Chart of Accounts asset (deposit target)
  * - Credit: Accounts Receivable (asset)
  */
 export async function postPaymentToLedger(
   supabase: Client,
   params: {
     paymentId: string
-    depositTo: PaymentAccountSlug
+    /** Chart of `accounts.id` — must be type `asset` (e.g. Cash on hand, BPI, Petty cash). */
+    depositAccountId: string
     amount: number
     entryDate: string
     memo?: string | null
@@ -50,11 +63,8 @@ export async function postPaymentToLedger(
   const amount = Math.round((Number(params.amount) || 0) * 100) / 100
   if (!Number.isFinite(amount) || amount <= 0) return
 
-  const assetIds = await ensurePaymentAssetAccounts(supabase)
-  const depositId = assetIds[params.depositTo]
-  if (!depositId) {
-    throw new Error(`Deposit account not found for ${SLUG_TO_CANONICAL_NAME[params.depositTo]}`)
-  }
+  await assertDepositAssetAccount(supabase, params.depositAccountId)
+  const depositId = params.depositAccountId.trim()
 
   const arId = await ensureArAccount(supabase)
   const entryDate = clampIsoDate(params.entryDate)
@@ -82,4 +92,3 @@ export async function postPaymentToLedger(
     throw new Error(jlErr.message)
   }
 }
-
